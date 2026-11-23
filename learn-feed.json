@@ -1,10 +1,10 @@
 {
  "schema": "enca-learn-feed/1",
- "generated": "2026-11-16T04:27:24.594Z",
+ "generated": "2026-11-23T04:24:41.244Z",
  "windowDays": 60,
  "source": {
   "repo": "MicrosoftDocs/entra-docs",
-  "head": "01f21c9cc0",
+  "head": "3413d1589f",
   "paths": [
    "identity/conditional-access/",
    "id-protection/",
@@ -14,13 +14,389 @@
   ]
  },
  "counts": {
-  "docs": 18,
-  "newDocs": 4,
-  "substantive": 16,
+  "docs": 29,
+  "newDocs": 5,
+  "substantive": 17,
   "watched": 17,
   "unwatched": 5
  },
  "docs": [
+  {
+   "url": "https://learn.microsoft.com/entra/id-protection/concept-identity-protection-risks",
+   "path": "docs/id-protection/concept-identity-protection-risks.md",
+   "title": "What are risk detections?",
+   "kind": "changed",
+   "lastChange": "2026-11-19T14:00:17-07:00",
+   "lines": 156,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "816f3b739e",
+     "date": "2026-11-19T14:00:17-07:00",
+     "subject": "Pulling public PR into private: https://github.com/MicrosoftDocs/entra-docs/pull/2166 (#15050)",
+     "add": 61,
+     "del": 61,
+     "bulk": true
+    },
+    {
+     "sha": "82e232b313",
+     "date": "2026-10-21T09:23:17-04:00",
+     "subject": "Update suspicious credential detection details",
+     "add": 5,
+     "del": 7,
+     "bulk": false
+    },
+    {
+     "sha": "8d54ff26da",
+     "date": "2026-10-19T14:15:40-04:00",
+     "subject": "Add suspicious credential addition detection",
+     "add": 15,
+     "del": 1,
+     "bulk": false
+    },
+    {
+     "sha": "2d2e626c16",
+     "date": "2026-10-15T15:43:30-04:00",
+     "subject": "Update atypical travel detection table",
+     "add": 1,
+     "del": 1,
+     "bulk": false
+    },
+    {
+     "sha": "f6b02dd237",
+     "date": "2026-10-15T15:28:07-04:00",
+     "subject": "Update atypical travel detection details",
+     "add": 2,
+     "del": 2,
+     "bulk": false
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/id-protection/concept-risky-agents",
+   "path": "docs/id-protection/concept-risky-agents.md",
+   "title": "ID Protection for Agents",
+   "kind": "changed",
+   "lastChange": "2026-11-19T14:00:17-07:00",
+   "lines": 16,
+   "bulkOnly": true,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "816f3b739e",
+     "date": "2026-11-19T14:00:17-07:00",
+     "subject": "Pulling public PR into private: https://github.com/MicrosoftDocs/entra-docs/pull/2166 (#15050)",
+     "add": 8,
+     "del": 8,
+     "bulk": true
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-approved-app-or-app-protection",
+   "path": "docs/identity/conditional-access/policy-all-users-approved-app-or-app-protection.md",
+   "title": "Conditional Access - Require approved app or app protection policy",
+   "kind": "changed",
+   "lastChange": "2026-11-16T18:56:33-08:00",
+   "lines": 6,
+   "bulkOnly": false,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "b3bb694055",
+     "date": "2026-11-16T18:56:33-08:00",
+     "subject": "Update policy-all-users-approved-app-or-app-protection.md with preview addition of Windows App for Windows support.",
+     "add": 2,
+     "del": 2,
+     "bulk": false
+    },
+    {
+     "sha": "12cb62ac91",
+     "date": "2026-10-06T09:47:13-05:00",
+     "subject": "Spelling fixes (#2125)",
+     "add": 1,
+     "del": 1,
+     "bulk": true
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-windows-app-protection",
+   "path": "docs/identity/conditional-access/policy-all-users-windows-app-protection.md",
+   "title": "Conditional Access - Require app protection policy for Windows",
+   "kind": "changed",
+   "lastChange": "2026-11-16T18:53:58-08:00",
+   "lines": 7,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "bc19995782",
+     "date": "2026-11-16T18:53:58-08:00",
+     "subject": "Update policy-all-users-windows-app-protection.md",
+     "add": 5,
+     "del": 2,
+     "bulk": false
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-session",
+   "path": "docs/identity/conditional-access/concept-conditional-access-session.md",
+   "title": "Conditional Access: Manage Session Controls Effectively",
+   "kind": "changed",
+   "lastChange": "2026-11-16T16:06:06-08:00",
+   "lines": 5,
+   "bulkOnly": true,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "530f4e791f",
+     "date": "2026-11-16T16:06:06-08:00",
+     "subject": "Publish Ignite 2026 External ID documentation release (#15007)",
+     "add": 4,
+     "del": 1,
+     "bulk": true
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-session-lifetime",
+   "path": "docs/identity/conditional-access/concept-session-lifetime.md",
+   "title": "Conditional Access adaptive session lifetime policies",
+   "kind": "changed",
+   "lastChange": "2026-11-16T16:06:06-08:00",
+   "lines": 33,
+   "bulkOnly": false,
+   "minor": false,
+   "commits": [
+    {
+     "sha": "530f4e791f",
+     "date": "2026-11-16T16:06:06-08:00",
+     "subject": "Publish Ignite 2026 External ID documentation release (#15007)",
+     "add": 3,
+     "del": 0,
+     "bulk": true
+    },
+    {
+     "sha": "d8e5f0c562",
+     "date": "2026-11-02T10:00:00-06:00",
+     "subject": "Document Every time strict preview and Private Access sign-in every time (#14758)",
+     "add": 27,
+     "del": 3,
+     "bulk": false
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/id-protection/concept-identity-protection-policies",
+   "path": "docs/id-protection/concept-identity-protection-policies.md",
+   "title": "Microsoft Entra ID Protection risk-based access policies",
+   "kind": "changed",
+   "lastChange": "2026-11-16T16:04:42-08:00",
+   "lines": 34,
+   "bulkOnly": true,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "d55e8547df",
+     "date": "2026-11-16T16:04:42-08:00",
+     "subject": "Publish Ignite 2026 High Assurance documentation release (#15002)",
+     "add": 30,
+     "del": 4,
+     "bulk": true
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/id-protection/concept-identity-protection-user-experience",
+   "path": "docs/id-protection/concept-identity-protection-user-experience.md",
+   "title": "User self-remediation with Microsoft Entra ID Protection",
+   "kind": "changed",
+   "lastChange": "2026-11-16T16:04:42-08:00",
+   "lines": 28,
+   "bulkOnly": true,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "d55e8547df",
+     "date": "2026-11-16T16:04:42-08:00",
+     "subject": "Publish Ignite 2026 High Assurance documentation release (#15002)",
+     "add": 26,
+     "del": 2,
+     "bulk": true
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies",
+   "path": "docs/id-protection/howto-identity-protection-configure-risk-policies.md",
+   "title": "Risk policies - Microsoft Entra ID Protection",
+   "kind": "changed",
+   "lastChange": "2026-11-16T16:04:42-08:00",
+   "lines": 47,
+   "bulkOnly": true,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "d55e8547df",
+     "date": "2026-11-16T16:04:42-08:00",
+     "subject": "Publish Ignite 2026 High Assurance documentation release (#15002)",
+     "add": 45,
+     "del": 2,
+     "bulk": true
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-investigate-risk",
+   "path": "docs/id-protection/howto-identity-protection-investigate-risk.md",
+   "title": "Investigate risk with Microsoft Entra ID Protection",
+   "kind": "changed",
+   "lastChange": "2026-11-16T16:04:42-08:00",
+   "lines": 23,
+   "bulkOnly": true,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "d55e8547df",
+     "date": "2026-11-16T16:04:42-08:00",
+     "subject": "Publish Ignite 2026 High Assurance documentation release (#15002)",
+     "add": 21,
+     "del": 2,
+     "bulk": true
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-remediate-unblock",
+   "path": "docs/id-protection/howto-identity-protection-remediate-unblock.md",
+   "title": "Remediate risks and unblock users",
+   "kind": "changed",
+   "lastChange": "2026-11-16T16:04:42-08:00",
+   "lines": 21,
+   "bulkOnly": true,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "d55e8547df",
+     "date": "2026-11-16T16:04:42-08:00",
+     "subject": "Publish Ignite 2026 High Assurance documentation release (#15002)",
+     "add": 20,
+     "del": 1,
+     "bulk": true
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps",
+   "path": "docs/identity/conditional-access/concept-conditional-access-cloud-apps.md",
+   "title": "Targeting Resources in Conditional Access Policies",
+   "kind": "changed",
+   "lastChange": "2026-11-16T16:04:42-08:00",
+   "lines": 25,
+   "bulkOnly": true,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "d55e8547df",
+     "date": "2026-11-16T16:04:42-08:00",
+     "subject": "Publish Ignite 2026 High Assurance documentation release (#15002)",
+     "add": 24,
+     "del": 1,
+     "bulk": true
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-grant",
+   "path": "docs/identity/conditional-access/concept-conditional-access-grant.md",
+   "title": "How to Configure Grant Controls in Microsoft Entra",
+   "kind": "changed",
+   "lastChange": "2026-11-16T16:04:42-08:00",
+   "lines": 34,
+   "bulkOnly": false,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "d55e8547df",
+     "date": "2026-11-16T16:04:42-08:00",
+     "subject": "Publish Ignite 2026 High Assurance documentation release (#15002)",
+     "add": 31,
+     "del": 1,
+     "bulk": true
+    },
+    {
+     "sha": "769bedfd8e",
+     "date": "2026-10-28T00:12:21+09:00",
+     "subject": "Update Microsoft Authenticator access requirements",
+     "add": 1,
+     "del": 1,
+     "bulk": false
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/policy-require-identity-verification",
+   "path": "docs/identity/conditional-access/policy-require-identity-verification.md",
+   "title": "Conditional Access Identity Verification",
+   "kind": "new",
+   "lastChange": "2026-11-16T16:04:42-08:00",
+   "lines": 276,
+   "bulkOnly": true,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "d55e8547df",
+     "date": "2026-11-16T16:04:42-08:00",
+     "subject": "Publish Ignite 2026 High Assurance documentation release (#15002)",
+     "add": 276,
+     "del": 0,
+     "bulk": true
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/policy-risk-based-sign-in",
+   "path": "docs/identity/conditional-access/policy-risk-based-sign-in.md",
+   "title": "Sign-in risk-based multifactor authentication",
+   "kind": "changed",
+   "lastChange": "2026-11-16T16:04:42-08:00",
+   "lines": 4,
+   "bulkOnly": true,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "d55e8547df",
+     "date": "2026-11-16T16:04:42-08:00",
+     "subject": "Publish Ignite 2026 High Assurance documentation release (#15002)",
+     "add": 4,
+     "del": 0,
+     "bulk": true
+    }
+   ]
+  },
+  {
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/policy-risk-based-user",
+   "path": "docs/identity/conditional-access/policy-risk-based-user.md",
+   "title": "Require remediation for risky users",
+   "kind": "changed",
+   "lastChange": "2026-11-16T16:04:42-08:00",
+   "lines": 20,
+   "bulkOnly": true,
+   "minor": true,
+   "commits": [
+    {
+     "sha": "d55e8547df",
+     "date": "2026-11-16T16:04:42-08:00",
+     "subject": "Publish Ignite 2026 High Assurance documentation release (#15002)",
+     "add": 19,
+     "del": 1,
+     "bulk": true
+    }
+   ]
+  },
   {
    "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-policy-plans",
    "path": "docs/identity/conditional-access/concept-conditional-access-policy-plans.md",
@@ -98,46 +474,6 @@
    ]
   },
   {
-   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-session-lifetime",
-   "path": "docs/identity/conditional-access/concept-session-lifetime.md",
-   "title": "Conditional Access adaptive session lifetime policies",
-   "kind": "changed",
-   "lastChange": "2026-11-02T10:00:00-06:00",
-   "lines": 30,
-   "bulkOnly": false,
-   "minor": false,
-   "commits": [
-    {
-     "sha": "d8e5f0c562",
-     "date": "2026-11-02T10:00:00-06:00",
-     "subject": "Document Every time strict preview and Private Access sign-in every time (#14758)",
-     "add": 27,
-     "del": 3,
-     "bulk": false
-    }
-   ]
-  },
-  {
-   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-grant",
-   "path": "docs/identity/conditional-access/concept-conditional-access-grant.md",
-   "title": "How to Configure Grant Controls in Microsoft Entra",
-   "kind": "changed",
-   "lastChange": "2026-10-28T00:12:21+09:00",
-   "lines": 2,
-   "bulkOnly": false,
-   "minor": true,
-   "commits": [
-    {
-     "sha": "769bedfd8e",
-     "date": "2026-10-28T00:12:21+09:00",
-     "subject": "Update Microsoft Authenticator access requirements",
-     "add": 1,
-     "del": 1,
-     "bulk": false
-    }
-   ]
-  },
-  {
    "url": "https://learn.microsoft.com/entra/identity/conditional-access/how-to-create-conditional-access-policy-plan",
    "path": "docs/identity/conditional-access/how-to-create-conditional-access-policy-plan.md",
    "title": "Create a Conditional Access policy plan (preview)",
@@ -173,50 +509,6 @@
      "subject": "Add Conditional Access policy plan documentation (#14524)",
      "add": 93,
      "del": 0,
-     "bulk": false
-    }
-   ]
-  },
-  {
-   "url": "https://learn.microsoft.com/entra/id-protection/concept-identity-protection-risks",
-   "path": "docs/id-protection/concept-identity-protection-risks.md",
-   "title": "What are risk detections?",
-   "kind": "changed",
-   "lastChange": "2026-10-21T09:23:17-04:00",
-   "lines": 34,
-   "bulkOnly": false,
-   "minor": false,
-   "commits": [
-    {
-     "sha": "82e232b313",
-     "date": "2026-10-21T09:23:17-04:00",
-     "subject": "Update suspicious credential detection details",
-     "add": 5,
-     "del": 7,
-     "bulk": false
-    },
-    {
-     "sha": "8d54ff26da",
-     "date": "2026-10-19T14:15:40-04:00",
-     "subject": "Add suspicious credential addition detection",
-     "add": 15,
-     "del": 1,
-     "bulk": false
-    },
-    {
-     "sha": "2d2e626c16",
-     "date": "2026-10-15T15:43:30-04:00",
-     "subject": "Update atypical travel detection table",
-     "add": 1,
-     "del": 1,
-     "bulk": false
-    },
-    {
-     "sha": "f6b02dd237",
-     "date": "2026-10-15T15:28:07-04:00",
-     "subject": "Update atypical travel detection details",
-     "add": 2,
-     "del": 2,
      "bulk": false
     }
    ]
@@ -350,26 +642,6 @@
    ]
   },
   {
-   "url": "https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-approved-app-or-app-protection",
-   "path": "docs/identity/conditional-access/policy-all-users-approved-app-or-app-protection.md",
-   "title": "Conditional Access - Require approved app or app protection policy",
-   "kind": "changed",
-   "lastChange": "2026-10-06T09:47:13-05:00",
-   "lines": 2,
-   "bulkOnly": true,
-   "minor": true,
-   "commits": [
-    {
-     "sha": "12cb62ac91",
-     "date": "2026-10-06T09:47:13-05:00",
-     "subject": "Spelling fixes (#2125)",
-     "add": 1,
-     "del": 1,
-     "bulk": true
-    }
-   ]
-  },
-  {
    "url": "https://learn.microsoft.com/entra/identity/conditional-access/howto-target-agent-identities",
    "path": "docs/identity/conditional-access/howto-target-agent-identities.md",
    "title": "Target agents in Microsoft Entra Conditional Access policies",
@@ -445,26 +717,6 @@
      "subject": "Enhance device platform section with security note (#2112)",
      "add": 2,
      "del": 1,
-     "bulk": false
-    }
-   ]
-  },
-  {
-   "url": "https://learn.microsoft.com/entra/identity/conditional-access/concept-continuous-access-evaluation",
-   "path": "docs/identity/conditional-access/concept-continuous-access-evaluation.md",
-   "title": "Continuous access evaluation in Microsoft Entra",
-   "kind": "changed",
-   "lastChange": "2026-09-22T15:59:45+01:00",
-   "lines": 3,
-   "bulkOnly": false,
-   "minor": true,
-   "commits": [
-    {
-     "sha": "0ec2a02b41",
-     "date": "2026-09-22T15:59:45+01:00",
-     "subject": "Learn Editor: Update concept-continuous-access-evaluation.md",
-     "add": 0,
-     "del": 3,
      "bulk": false
     }
    ]
@@ -634,14 +886,14 @@
    "path": "docs/id-protection/concept-identity-protection-policies.md",
    "title": "Microsoft Entra ID Protection risk-based access policies",
    "last": {
-    "sha": "39cb88eb19",
-    "date": "2026-08-14T16:13:02-04:00",
-    "subject": "Update attacker-added device remediation details"
+    "sha": "d55e8547df",
+    "date": "2026-11-16T16:04:42-08:00",
+    "subject": "Publish Ignite 2026 High Assurance documentation release (#15002)"
    },
    "lastSubstantive": {
-    "sha": "39cb88eb19",
-    "date": "2026-08-14T16:13:02-04:00",
-    "subject": "Update attacker-added device remediation details"
+    "sha": "d55e8547df",
+    "date": "2026-11-16T16:04:42-08:00",
+    "subject": "Publish Ignite 2026 High Assurance documentation release (#15002)"
    }
   },
   "https://learn.microsoft.com/entra/identity/authentication/concept-authentication-strength-external-users": {
@@ -694,14 +946,14 @@
    "path": "docs/identity/authentication/how-to-enable-authenticator-passkey.md",
    "title": "Enable and support passkeys in Authenticator for Microsoft Entra ID",
    "last": {
-    "sha": "788312bfc5",
-    "date": "2026-10-28T12:05:29-05:00",
-    "subject": "Note November availability for Authenticator registration resource"
+    "sha": "9b1cf01ca2",
+    "date": "2026-11-17T09:33:12-08:00",
+    "subject": "Clarify Authenticator minimum versions for passkey registration workaround"
    },
    "lastSubstantive": {
-    "sha": "788312bfc5",
-    "date": "2026-10-28T12:05:29-05:00",
-    "subject": "Note November availability for Authenticator registration resource"
+    "sha": "9b1cf01ca2",
+    "date": "2026-11-17T09:33:12-08:00",
+    "subject": "Clarify Authenticator minimum versions for passkey registration workaround"
    }
   },
   "https://learn.microsoft.com/entra/identity/conditional-access/concept-continuous-access-evaluation": {
@@ -814,14 +1066,14 @@
    "path": "docs/identity/devices/howto-vm-sign-in-azure-ad-windows.md",
    "title": "Sign in to a Windows virtual machine in Azure by using Microsoft Entra ID",
    "last": {
-    "sha": "111ba9d9ec",
-    "date": "2026-06-18T12:17:03-05:00",
-    "subject": "Learn Editor: Update howto-vm-sign-in-azure-ad-windows.md"
+    "sha": "de8dffcc6c",
+    "date": "2026-11-18T10:41:20-06:00",
+    "subject": "Update preview link for managing Windows Server with Intune"
    },
    "lastSubstantive": {
-    "sha": "111ba9d9ec",
-    "date": "2026-06-18T12:17:03-05:00",
-    "subject": "Learn Editor: Update howto-vm-sign-in-azure-ad-windows.md"
+    "sha": "de8dffcc6c",
+    "date": "2026-11-18T10:41:20-06:00",
+    "subject": "Update preview link for managing Windows Server with Intune"
    }
   },
   "https://learn.microsoft.com/entra/identity/hybrid/connect/reference-connect-version-history": {
@@ -829,14 +1081,14 @@
    "path": "docs/identity/hybrid/connect/reference-connect-version-history.md",
    "title": "Microsoft Entra Connect: Version release history",
    "last": {
-    "sha": "12cb62ac91",
-    "date": "2026-10-06T09:47:13-05:00",
-    "subject": "Spelling fixes (#2125)"
+    "sha": "816f3b739e",
+    "date": "2026-11-19T14:00:17-07:00",
+    "subject": "Pulling public PR into private: https://github.com/MicrosoftDocs/entra-docs/pull/2166 (#15050)"
    },
    "lastSubstantive": {
-    "sha": "12cb62ac91",
-    "date": "2026-10-06T09:47:13-05:00",
-    "subject": "Spelling fixes (#2125)"
+    "sha": "816f3b739e",
+    "date": "2026-11-19T14:00:17-07:00",
+    "subject": "Pulling public PR into private: https://github.com/MicrosoftDocs/entra-docs/pull/2166 (#15050)"
    }
   },
   "https://learn.microsoft.com/entra/identity/role-based-access-control/security-emergency-access": {
@@ -893,11 +1145,21 @@
    ]
   },
   {
+   "key": "doc:docs/identity/devices/howto-vm-sign-in-azure-ad-windows.md",
+   "kind": "alert",
+   "title": "Sign in to a Windows virtual machine in Azure by using Microsoft Entra ID",
+   "url": "https://learn.microsoft.com/entra/identity/devices/howto-vm-sign-in-azure-ad-windows",
+   "since": "2026-11-18T10:41:20-06:00",
+   "checks": [
+    "azure-vm-signin-mfa"
+   ]
+  },
+  {
    "key": "doc:docs/identity/authentication/how-to-enable-authenticator-passkey.md",
    "kind": "alert",
    "title": "Enable and support passkeys in Authenticator for Microsoft Entra ID",
    "url": "https://learn.microsoft.com/entra/identity/authentication/how-to-enable-authenticator-passkey",
-   "since": "2026-10-28T12:05:29-05:00",
+   "since": "2026-11-17T09:33:12-08:00",
    "checks": [
     "authenticator-passkey-app-protection"
    ]
@@ -913,14 +1175,32 @@
    ]
   },
   {
+   "key": "doc:docs/id-protection/concept-identity-protection-policies.md",
+   "kind": "alert",
+   "title": "Microsoft Entra ID Protection risk-based access policies",
+   "url": "https://learn.microsoft.com/entra/id-protection/concept-identity-protection-policies",
+   "since": "2026-11-16T16:04:42-08:00",
+   "checks": [
+    "user-risk-password-change-only"
+   ]
+  },
+  {
    "key": "doc:docs/identity/hybrid/connect/reference-connect-version-history.md",
    "kind": "alert",
    "title": "Microsoft Entra Connect: Version release history",
    "url": "https://learn.microsoft.com/entra/identity/hybrid/connect/reference-connect-version-history",
-   "since": "2026-10-06T09:47:13-05:00",
+   "since": "2026-11-19T14:00:17-07:00",
    "checks": [
     "dirsync-account-mfa"
    ]
+  },
+  {
+   "key": "doc:docs/identity/conditional-access/policy-require-identity-verification.md",
+   "kind": "new",
+   "title": "Conditional Access Identity Verification",
+   "url": "https://learn.microsoft.com/entra/identity/conditional-access/policy-require-identity-verification",
+   "since": "2026-11-16T16:04:42-08:00",
+   "checks": []
   },
   {
    "key": "doc:docs/identity/conditional-access/concept-conditional-access-policy-plans.md",
