@@ -211,6 +211,27 @@ const DeployDash = (() => {
     }));
     const groupById = new Map(G.filter((g) => g.id).map((g) => [g.id, g]));
 
+    // --- a country and its sites (0.7.1, 33604 — Mihai 23 Nov:
+    //     "INT-NL-Amsterdam and EXT-NL-Amsterdam are part of INT-NL and
+    //     EXT-NL, so in the NL groups the Amsterdam one needs to be
+    //     deducted"). A SITE is a group with the same side (INT-, EXT- or
+    //     none) and country code plus a city; the country row counts its
+    //     OWN members — everyone in it minus everyone in any of its sites —
+    //     in its member count, route, exclusions and needs-a-look. Coverage,
+    //     the region totals and the left-out count go by the person and use
+    //     the whole group, so nobody is lost or counted twice there.
+    const sideOf = (key) => (/^INT-/i.test(key) ? "INT" : /^EXT-/i.test(key) ? "EXT" : "");
+    G.forEach((g) => {
+      const p = placeOf(g.key); if (!p || p.city || !g.id) return;
+      const sites = G.filter((x) => x !== g && x.id && sideOf(x.key) === sideOf(g.key)).filter((x) => { const q = placeOf(x.key); return q && q.city && q.code.toLowerCase() === p.code.toLowerCase(); });
+      if (!sites.length) return;
+      const inSites = new Set(); sites.forEach((x) => x.all.forEach((id) => inSites.add(id)));
+      const own = new Set([...g.all].filter((id) => !inSites.has(id)));
+      g.own = own;
+      g.split = { total: g.all.size, deducted: g.all.size - own.size, code: p.code.toUpperCase(), sites: sites.map((x) => ({ key: x.key, name: x.name, city: placeOf(x.key).city, n: x.all.size })).sort((a, b) => b.n - a.n) };
+      sites.forEach((x) => { x.siteOf = g.key; });
+    });
+
     // --- upward nesting (0.4.0, 33303 — Mihai 11 Nov: a site group nested in
     //     GLO and INT read "no group nested inside" and no policy, while
     //     GLO's and INT's policies reach every one of its members). The
@@ -269,8 +290,9 @@ const DeployDash = (() => {
     const takenByRow = [];            // row index → userId → exclusion route (the region pies)
     const rows = G.map((g) => {
       const direct = g.direct || new Set(), nested = g.nested || new Set();
-      const members = g.all.size;
-      const route = { nested: nested.size, direct: direct.size };
+      const all = g.own || g.all;
+      const members = all.size;
+      const route = g.own ? { nested: [...nested].filter((id) => all.has(id)).length, direct: [...direct].filter((id) => all.has(id)).length } : { nested: nested.size, direct: direct.size };
       // policies on it
       const on = g.id ? pols.filter((p) => reaches(p, g)) : [];
       const pm = (g.id && parentsOf.get(g.id)) || new Map();
@@ -303,16 +325,16 @@ const DeployDash = (() => {
           const nm = eg.name || names[gid] || gid;
           const kind = isScope(gid, nm) ? "scope" : /breakglass|break-glass|emergency/i.test(nm) ? "bg" : /\bCA\d{3,4}[A-Za-z]?-Exclusion\b/i.test(nm) ? "ca" : "group";
           let n = 0;
-          (eg.members || new Set()).forEach((id) => { if (!g.all.has(id)) return; n++; if (kind === "scope") { scoped.add(id); return; } const cur = taken.get(id); if (!cur || RANK[kind] < RANK[cur]) taken.set(id, kind); });
+          (eg.members || new Set()).forEach((id) => { if (!all.has(id)) return; n++; if (kind === "scope") { scoped.add(id); return; } const cur = taken.get(id); if (!cur || RANK[kind] < RANK[cur]) taken.set(id, kind); });
           if (n) lines.push(Object.assign({ excluded: nm, excludedId: gid, kind, n }, P));
           const u = exclGroupUse.get(gid) || exclGroupUse.set(gid, { n: new Set(), policies: new Set() }).get(gid);
-          (eg.members || new Set()).forEach((id) => { if (g.all.has(id)) u.n.add(id); });
+          (eg.members || new Set()).forEach((id) => { if (all.has(id)) u.n.add(id); });
           u.policies.add(p.seq || p.name);
         });
         let nu = 0;
-        p.excUsers.forEach((id) => { if (g.all.has(id)) { nu++; const cur = taken.get(id); if (!cur || RANK.user < RANK[cur]) taken.set(id, "user"); } });
+        p.excUsers.forEach((id) => { if (all.has(id)) { nu++; const cur = taken.get(id); if (!cur || RANK.user < RANK[cur]) taken.set(id, "user"); } });
         if (nu) lines.push(Object.assign({ excluded: nu === 1 ? "1 user directly" : `${fmt(nu)} users directly`, excludedId: "", kind: "user", n: nu }, P));
-        p.excRoles.forEach((rt) => { let nr = 0; (roleMembers.get(rt) || new Set()).forEach((id) => { if (g.all.has(id)) { nr++; const cur = taken.get(id); if (!cur || RANK.role < RANK[cur]) taken.set(id, "role"); } }); if (nr) lines.push(Object.assign({ excluded: names[rt] || rt, excludedId: rt, kind: "role", n: nr }, P)); });
+        p.excRoles.forEach((rt) => { let nr = 0; (roleMembers.get(rt) || new Set()).forEach((id) => { if (all.has(id)) { nr++; const cur = taken.get(id); if (!cur || RANK.role < RANK[cur]) taken.set(id, "role"); } }); if (nr) lines.push(Object.assign({ excluded: names[rt] || rt, excludedId: rt, kind: "role", n: nr }, P)); });
       });
       lines.sort((a, b) => b.n - a.n || String(a.policy).localeCompare(String(b.policy)));
       lines.forEach((l) => { l.bypass = l.state === "enf" && l.kind !== "scope" && l.kind !== "role"; });
@@ -322,8 +344,8 @@ const DeployDash = (() => {
       // needs a look — what this page can see without 🌊
       const look = [];
       const twin = g.key === "INT" ? G.find((x) => x.key === "EXT") : g.key === "EXT" ? G.find((x) => x.key === "INT") : null;
-      if (twin) { let n = 0; g.all.forEach((id) => { if (twin.all.has(id)) n++; }); if (n) look.push({ kind: "two", n, text: `${fmt(n)} in both INT and EXT` }); }
-      let dis = 0; g.all.forEach((id) => { if (!byId.has(id) && anyId.has(id)) dis++; }); if (dis) look.push({ kind: "disabled", n: dis, text: `${fmt(dis)} disabled` });
+      if (twin) { let n = 0; all.forEach((id) => { if (twin.all.has(id)) n++; }); if (n) look.push({ kind: "two", n, text: `${fmt(n)} in both INT and EXT` }); }
+      let dis = 0; all.forEach((id) => { if (!byId.has(id) && anyId.has(id)) dis++; }); if (dis) look.push({ kind: "disabled", n: dis, text: `${fmt(dis)} disabled` });
       const onLive = on.filter((p) => p.state === "enf");
       if (excl && onLive.length) { let n = 0; taken.forEach((kind, id) => { if (onLive.some((p) => p.excGroups.some((gid) => { const eg = exclGroups.get(gid) || {}; return !isScope(gid, eg.name || names[gid]) && eg.members?.has(id); }) || p.excUsers.includes(id))) n++; }); if (n) look.push({ kind: "bypass", n, text: `${fmt(n)} standing bypass` }); }
       if (g.id) {
@@ -335,7 +357,7 @@ const DeployDash = (() => {
       takenByRow.push(taken);
       const rd = readiness.get(g.key) || null;
       return { key: g.key, name: g.name, id: g.id, found: !!g.id, dynamic: !!g.dynamic, nestedGroups: (g.childIds || g.children || []).length, nestedIn, via, polDirect, members, route, pol, on: on.map((p) => ({ id: p.id, name: p.name, seq: p.seq, state: p.state, direct: p.inc.has(g.id) })),
-        live: pol.enf > 0, excl, scoped: scopedOnly, exclLines: lines, exclBy, look, readiness: rd, region: regionList.length ? regionFor(g.key, regionList, regIdx) : "" };
+        live: pol.enf > 0, excl, scoped: scopedOnly, exclLines: lines, exclBy, look, readiness: rd, region: regionList.length ? regionFor(g.key, regionList, regIdx) : "", split: g.split || null, siteOf: g.siteOf || "" };
     });
     // the tenant-wide pie counts a PERSON once, by her strongest route; the
     // per-group bars count her in every group she is taken out of
@@ -557,14 +579,21 @@ const DeployDash = (() => {
   // which coverage slice has a list behind it
   const LISTS = { none: "nopolicy", out: "leftout" };
 
+  // A country row with sites split off says how its count was made; a site
+  // row says it is counted there and not under its country.
+  function splitLine(r) {
+    if (r.split) { const sp = r.split; return `<div class="mini dd-split">${fmt(sp.total)} in the group − ${fmt(sp.deducted)} counted in its sites (${sp.sites.map((x) => `${esc(x.city)} ${fmt(x.n)}`).join(" · ")}) = <b>${fmt(r.members)} rest of ${esc(sp.code)}</b></div>`; }
+    if (r.siteOf) return `<div class="mini muted">site of ${esc(r.siteOf)} — counted here, not under ${esc(r.siteOf)}</div>`;
+    return "";
+  }
   function groupsTable(m, o) {
     const rows = o.group ? m.groups.filter((r) => r.key === o.group) : o.region && m.regionsOn ? m.groups.filter((r) => r.region === o.region) : m.groups;
     const name = (r) => o.app && r.id ? `<button type="button" class="dd-link dd-name" data-dd-group="${esc(r.id)}" title="Open this group in 👥 CA groups">${esc(r.name)}</button>` : `<b>${esc(r.name)}</b>`;
     const count = (r, filter, n) => o.app && r.id && n ? `<button type="button" class="dd-link" data-dd-wave="${esc(r.id)}"${filter ? ` data-dd-wavefilter="${filter}"` : ""} title="Open 🌊 Who is the wave on this group">${fmt(n)}</button>` : fmt(n);
     return `<section class="dd-panel"><div class="dd-panel-head"><h4>Group by group</h4><span class="mini muted">Same colours as the charts · hover a bar for its counts · a count opens 🌊 with the group picked</span></div>
       <div class="dd-twrap"><table class="cg-table dd-table"><thead><tr><th>Deploy group</th><th class="dd-num">Members</th><th>Route in</th><th>Policies on it</th><th>Go-live readiness</th><th>Taken out by exclusions</th><th>Needs a look</th></tr></thead><tbody>
-      ${rows.map((r) => `<tr${r.found ? "" : ' class="dd-missing"'}${o.app && r.id ? ` data-dd-row="${esc(r.id)}"` : ""}><td>${name(r)}<div class="mini muted">${r.found ? (r.nestedGroups ? esc(plural(r.nestedGroups, "group nested inside", "groups nested inside")) : "no group nested inside") : "not in this tenant"}${r.dynamic ? " · dynamic" : ""}</div>${nestedInLine(r, o)}</td>
-        <td class="dd-num">${count(r, "", r.members)}</td><td>${bar(SER.route, r.route)}</td><td>${bar(SER.pol, r.pol)}${viaLine(r)}</td><td>${readinessCell(r, m, o)}</td>
+      ${rows.map((r) => `<tr${r.found ? "" : ' class="dd-missing"'}${o.app && r.id ? ` data-dd-row="${esc(r.id)}"` : ""}><td>${name(r)}<div class="mini muted">${r.found ? (r.nestedGroups ? esc(plural(r.nestedGroups, "group nested inside", "groups nested inside")) : "no group nested inside") : "not in this tenant"}${r.dynamic ? " · dynamic" : ""}</div>${splitLine(r)}${nestedInLine(r, o)}</td>
+        <td class="dd-num">${count(r, "", r.members)}${r.split ? `<div class="mini muted">of ${fmt(r.split.total)}</div>` : ""}</td><td>${bar(SER.route, r.route)}</td><td>${bar(SER.pol, r.pol)}${viaLine(r)}</td><td>${readinessCell(r, m, o)}</td>
         <td>${takenCell(r, o, count)}</td><td>${lookCell(r, o)}</td></tr>${exclRow(r, o)}`).join("")}
       </tbody></table></div>
       <p class="mini muted" style="margin:8px 0 0">Readiness is 🌊 Who is the wave's verdict for the report-only policies on the group: locked out (named there), prompted, unchanged, silent — silent is no data, never safety. A live group with nothing left in report-only shows its enforced count. Route in and reach count members once per group; a person in two groups is in both rows.</p></section>`;
@@ -701,9 +730,9 @@ const DeployDash = (() => {
 
   // ------------------------------------------------------------- csv --
   function toCsv(m) {
-    const rows = [["deploy_group", "found", "members", "direct", "nested", "enforced", "report_only", "off", "excluded", "excl_breakglass", "excl_ca_group", "excl_other_group", "excl_user", "excl_role", "readiness", "locked_out", "prompted", "needs_a_look", "nested_in", "policies_direct", "scoped_out", "region"]];
+    const rows = [["deploy_group", "found", "members", "direct", "nested", "enforced", "report_only", "off", "excluded", "excl_breakglass", "excl_ca_group", "excl_other_group", "excl_user", "excl_role", "readiness", "locked_out", "prompted", "needs_a_look", "nested_in", "policies_direct", "scoped_out", "region", "members_in_group", "counted_in_sites"]];
     m.groups.forEach((r) => rows.push([r.name, r.found, r.members, r.route.direct, r.route.nested, r.pol.enf, r.pol.ro, r.pol.off, r.excl, r.exclBy.bg, r.exclBy.ca, r.exclBy.group, r.exclBy.user, r.exclBy.role,
-      r.readiness ? VERDICT[r.readiness.verdict] || "" : "", r.readiness ? r.readiness.locked : "", r.readiness ? r.readiness.prompted : "", r.look.map((l) => l.text).join("; "), (r.nestedIn || []).map((a) => a.name).join("; "), r.polDirect ? r.polDirect.enf + r.polDirect.ro + r.polDirect.off : "", r.scoped || 0, r.region || ""]));
+      r.readiness ? VERDICT[r.readiness.verdict] || "" : "", r.readiness ? r.readiness.locked : "", r.readiness ? r.readiness.prompted : "", r.look.map((l) => l.text).join("; "), (r.nestedIn || []).map((a) => a.name).join("; "), r.polDirect ? r.polDirect.enf + r.polDirect.ro + r.polDirect.off : "", r.scoped || 0, r.region || "", r.split ? r.split.total : r.members, r.split ? r.split.deducted : 0]));
     rows.push([]); rows.push(["exclusion_deploy_group", "policy", "state", "excluded", "kind", "members_taken_out"]);
     m.groups.forEach((r) => (r.exclLines || []).forEach((l) => rows.push([r.name, l.policyName, { enf: "enforced", ro: "report-only", off: "off" }[l.state] || l.state, l.excluded, l.kind, l.n])));
     if (m.regionsOn && m.regions.length) {

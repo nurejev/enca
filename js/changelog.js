@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33604, date: "2026-11-23", title: "📊 Deployment dashboard: a country group counts the rest of the country — its site groups are deducted",
+    items: [
+      { kind: "fixed", tool: "Deployment dashboard", text: "📊 A site group such as INT-NL-Amsterdam is part of its country group INT-NL, so the NL row counted the Amsterdam people a second time. The country row now counts only the rest of the country — everyone in it minus everyone in its sites — and says how under its name (3,120 in the group − 2,210 counted in its sites = 910 rest of NL); each site row says it is counted there. INT and EXT are split on their own side. Not live shows the rest-of-country number; coverage and the region totals already counted each person once and are unchanged." },
+    ],
+  },
+  {
     build: 33603, date: "2026-11-23", title: "📊 Deployment dashboard: what's missing for the rollout — missing groups and groups not live, two lists",
     items: [
       { kind: "new", tool: "Deployment dashboard", text: "📊 What's missing, under the region rows. Missing lists every country and site in the region list with no deploy group, or with only one of its INT and EXT twins, and the name the missing group would carry. Not live lists every deploy group that exists but that no enforced policy reaches. The two are separate lists; pick a region to narrow both. Copy list puts the list on the clipboard for a ticket or a mail, Export CSV saves it, and the HTML export carries both." },

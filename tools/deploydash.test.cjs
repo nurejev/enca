@@ -445,3 +445,27 @@ test("gaps: missing = no group or one twin; not live = a group no enforced polic
   assert.match(x, /Missing — 2/); assert.match(x, /Not live — /);
   assert.equal(DeployDash.build(fixture()).gaps.missing.length, 0, "no region list → no gaps panel data");
 });
+
+// ---- 0.7.1 (33604): a country row counts its own members, its sites deducted
+test("country minus its sites: INT-NL counts the rest of NL, the site rows keep theirs, coverage counts each person once", () => {
+  const f = fixture();
+  f.groups.push({ key: "INT-NL", name: "CAD-SEC-U-DG-INT-NL", id: "g-inl", direct: set("a", "b", "d"), nested: set() });
+  f.groups.push({ key: "INT-NL-Amsterdam", name: "CAD-SEC-U-DG-INT-NL-Amsterdam", id: "g-ams", direct: set("a", "b"), nested: set() });
+  f.groups.push({ key: "EXT-NL", name: "CAD-SEC-U-DG-EXT-NL", id: "g-enl", direct: set("e"), nested: set() });
+  f.policies.push({ id: "p8", name: "CA230-NL-Ams", state: "enabled", includeGroups: ["g-ams"], excludeGroups: [], excludeUsers: ["a"], excludeRoles: [] });
+  const regions = [{ region: "Euro", code: "NL", city: "" }, { region: "Euro", code: "NL", city: "Amsterdam" }];
+  const m = DeployDash.build(Object.assign(f, { regions }));
+  const nl = m.groups.find((r) => r.key === "INT-NL"), ams = m.groups.find((r) => r.key === "INT-NL-Amsterdam"), enl = m.groups.find((r) => r.key === "EXT-NL");
+  assert.equal(nl.members, 1, "a and b are counted in Amsterdam, d is the rest of NL");
+  assert.deepEqual([nl.split.total, nl.split.deducted], [3, 2]);
+  assert.equal(nl.route.direct, 1);
+  assert.equal(ams.members, 2); assert.equal(ams.siteOf, "INT-NL");
+  assert.equal(enl.split, null, "EXT-NL has no EXT site — the INT site is not its site");
+  assert.equal(m.gaps.notlive.find((g) => g.group === "CAD-SEC-U-DG-INT-NL").members, 1, "not live shows the rest of NL");
+  const eu = m.regions.find((x) => x.name === "Euro");
+  assert.equal(eu.cov.in, 4, "the region still counts every person once: a, b, d, e");
+  const h = DeployDash.html(m, { app: true });
+  assert.match(h, /3 in the group − 2 counted in its sites \(Amsterdam 2\) = <b>1 rest of NL<\/b>/);
+  assert.match(h, /site of INT-NL — counted here, not under INT-NL/);
+  assert.match(DeployDash.toCsv(m), /members_in_group,counted_in_sites/);
+});
