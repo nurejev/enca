@@ -392,7 +392,7 @@ const DeployDash = (() => {
     //              prefix counts for both sides.
     //     NOT LIVE a deploy group that exists and that no enforced policy
     //              reaches (report-only at best, or nothing).
-    const gaps = { missing: [], notlive: [] };
+    const gaps = { missing: [], via: [], notlive: [] };
     if (regionList.length) {
       const places = new Map();     // "code|city" → { region, code, city, int, ext }
       const placeKey = (code, city) => `${code}|${city || ""}`.toLowerCase();
@@ -406,14 +406,29 @@ const DeployDash = (() => {
         if (side === "both") { e.int = e.int || r; e.ext = e.ext || r; } else e[side] = r;
       });
       const want = (e, side) => `CAD-SEC-U-DG-${side}-${e.code}${e.city ? `-${e.city}` : ""}`;
+      // 0.7.2 (33605 — Mihai 23 Nov on PL · Warszawa and PL · Skarbimierz
+      // listed missing: "do we also cover if these are covered in the
+      // current PL groups?"; on the mockup, a list of their own). A SITE
+      // with no group of its own on a side falls back to its COUNTRY group
+      // on that side — its people are in INT-PL / EXT-PL and targeted
+      // through them. Per side: own group, else via the country, else
+      // missing. A side that is missing puts the place in Missing; a place
+      // covered on both sides with at least one via goes to Via country —
+      // covered, not a gap. A country row has nothing to fall back on.
       places.forEach((e) => {
         const label = e.city ? `${e.code} · ${e.city}` : e.code;
-        if (!e.int && !e.ext) gaps.missing.push({ region: e.region, place: label, kind: "nogroup", int: null, ext: null, wantInt: want(e, "INT"), wantExt: want(e, "EXT") });
-        else if (!e.int || !e.ext) gaps.missing.push({ region: e.region, place: label, kind: "twin", int: e.int ? e.int.name : null, ext: e.ext ? e.ext.name : null, wantInt: want(e, "INT"), wantExt: want(e, "EXT") });
+        const country = e.city ? places.get(placeKey(e.code, "")) : null;
+        const viaInt = !e.int && country && country.int ? country.int : null;
+        const viaExt = !e.ext && country && country.ext ? country.ext : null;
+        const missInt = !e.int && !viaInt, missExt = !e.ext && !viaExt;
+        const base = { region: e.region, place: label, int: e.int ? e.int.name : null, ext: e.ext ? e.ext.name : null, viaInt: viaInt ? viaInt.name : null, viaExt: viaExt ? viaExt.name : null, viaIntLive: !!(viaInt && viaInt.live), viaExtLive: !!(viaExt && viaExt.live), wantInt: want(e, "INT"), wantExt: want(e, "EXT"), countryInt: e.city ? want({ code: e.code, city: "" }, "INT") : "", countryExt: e.city ? want({ code: e.code, city: "" }, "EXT") : "" };
+        if (missInt || missExt) gaps.missing.push(Object.assign(base, { kind: viaInt || viaExt ? "site" : !e.int && !e.ext ? "nogroup" : "twin" }));
+        else if (viaInt || viaExt) gaps.via.push(Object.assign(base, { kind: "via" }));
       });
       const order = [CORE, ...regionOrderOf(regionList), NOREGION];
       const ro = (n) => { const i = order.indexOf(n); return i < 0 ? order.length : i; };
       gaps.missing.sort((a, b) => ro(a.region) - ro(b.region) || a.place.localeCompare(b.place));
+      gaps.via.sort((a, b) => ro(a.region) - ro(b.region) || a.place.localeCompare(b.place));
       rows.filter((r) => r.found && !r.live).forEach((r) => {
         const why = r.pol.ro ? `report-only only — ${plural(r.pol.ro, "report-only policy", "report-only policies")} reach it` : r.members ? "no live policy reaches it" : "empty group, no live policy";
         gaps.notlive.push({ region: r.region, group: r.name, id: r.id, key: r.key, state: r.pol.ro ? "ro" : "none", members: r.members, why });
@@ -672,37 +687,51 @@ const DeployDash = (() => {
   // group, a twin missing) and Not live (a group no enforced policy
   // reaches). The region filter narrows both; the export carries both.
   const gapRows = (m, kind, region) => ((m.gaps && m.gaps[kind]) || []).filter((g) => !region || g.region === region);
+  // What a Missing row lacks, in words — the same line on screen, in Copy list and in the CSV.
+  function gapWhat(g) {
+    if (g.kind === "nogroup") return `in the region list, no deploy group — ${g.wantInt}, ${g.wantExt}`;
+    if (g.kind === "twin") return `twin missing — ${g.int ? g.wantExt : g.wantInt}`;
+    const side = (s) => s === "INT" ? !g.int && !g.viaInt : !g.ext && !g.viaExt;
+    return ["INT", "EXT"].filter(side).map((S) => `${S} side uncovered — no ${S === "INT" ? g.wantInt : g.wantExt} and no ${S === "INT" ? g.countryInt : g.countryExt} to fall back on`).join("; ");
+  }
+  const viaWhat = (g) => [g.viaInt ? `${keyOf(g.viaInt)} ${g.viaIntLive ? "live" : "not live"}` : `own ${keyOf(g.int)}`, g.viaExt ? `${keyOf(g.viaExt)} ${g.viaExtLive ? "live" : "not live"}` : `own ${keyOf(g.ext)}`].join(" · ");
   function gapsText(m, kind, region) {
     const L = gapRows(m, kind, region);
-    if (kind === "missing") return [`Missing deploy groups${region ? ` · ${region}` : ""} — ${L.length}`, ...L.map((g) => `${g.region}\t${g.place}\t${g.kind === "nogroup" ? `no group — ${g.wantInt}, ${g.wantExt}` : `twin missing — ${g.int ? g.wantExt : g.wantInt}`}`)].join("\n");
+    if (kind === "missing") return [`Missing deploy groups${region ? ` · ${region}` : ""} — ${L.length}`, ...L.map((g) => `${g.region}\t${g.place}\t${gapWhat(g)}`)].join("\n");
+    if (kind === "via") return [`Sites covered through their country group${region ? ` · ${region}` : ""} — ${L.length}`, ...L.map((g) => `${g.region}\t${g.place}\tno site group — covered by ${viaWhat(g)}`)].join("\n");
     return [`Deploy groups not live${region ? ` · ${region}` : ""} — ${L.length}`, ...L.map((g) => `${g.region}\t${g.group}\t${g.members} members\t${g.why}`)].join("\n");
   }
   function gapsCsv(m, kind, region) {
     const L = gapRows(m, kind, region);
     const rows = kind === "missing"
-      ? [["region", "country_site", "gap", "int_group", "ext_group", "missing_name"], ...L.map((g) => [g.region, g.place, g.kind === "nogroup" ? "no group" : "twin missing", g.int || "", g.ext || "", g.kind === "nogroup" ? `${g.wantInt}; ${g.wantExt}` : (g.int ? g.wantExt : g.wantInt)])]
+      ? [["region", "country_site", "gap", "int_group", "ext_group", "int_via", "ext_via", "what"], ...L.map((g) => [g.region, g.place, { nogroup: "no group", twin: "twin missing", site: "site side uncovered" }[g.kind], g.int || "", g.ext || "", g.viaInt || "", g.viaExt || "", gapWhat(g)])]
+      : kind === "via" ? [["region", "country_site", "int_group", "ext_group", "int_via", "ext_via", "covered_by"], ...L.map((g) => [g.region, g.place, g.int || "", g.ext || "", g.viaInt || "", g.viaExt || "", viaWhat(g)])]
       : [["region", "deploy_group", "members", "state", "why"], ...L.map((g) => [g.region, g.group, g.members, g.state === "ro" ? "report-only only" : "no live policy", g.why])];
     return rows.map((r) => r.map(csvCell).join(",")).join("\r\n");
   }
   function gapsPanel(m, o) {
     if (!m.regionsOn || !m.gaps) return "";
     const region = o.region && m.regionsOn ? o.region : "";
-    const mi = gapRows(m, "missing", region), nl = gapRows(m, "notlive", region);
-    const cell = (name, want) => name
+    const mi = gapRows(m, "missing", region), vi = gapRows(m, "via", region), nl = gapRows(m, "notlive", region);
+    const cell = (name, want, via) => name
       ? (o.app ? `<button type="button" class="dd-pill dd-gap-ok" data-dd-jumpname="${esc(name)}" title="Go to its row">${esc(keyOf(name))}</button>` : `<span class="dd-pill dd-gap-ok">${esc(keyOf(name))}</span>`)
+      : via ? (o.app ? `<button type="button" class="dd-pill dd-gap-via" data-dd-jumpname="${esc(via)}" title="No site group — covered through ${esc(via)}; go to its row">via ${esc(keyOf(via))}</button>` : `<span class="dd-pill dd-gap-via">via ${esc(keyOf(via))}</span>`)
       : (o.app ? `<button type="button" class="dd-pill bad" data-dd-cg="${esc(want)}" title="Look for ${esc(want)} in 👥 CA groups — ② Create makes it">missing</button>` : `<span class="dd-pill bad" title="${esc(want)}">missing</span>`);
-    const miTable = mi.length ? `<div class="dd-twrap"><table class="cg-table dd-table dd-gaps"><thead><tr><th>Region</th><th>Country · site</th><th>INT</th><th>EXT</th><th>Gap</th></tr></thead><tbody>${mi.map((g) => `<tr><td>${esc(g.region)}</td><td><b>${esc(g.place)}</b></td><td>${cell(g.int, g.wantInt)}</td><td>${cell(g.ext, g.wantExt)}</td><td class="mini">${g.kind === "nogroup" ? "in the region list, no deploy group" : `twin missing — ${esc(g.int ? g.wantExt : g.wantInt)}`}</td></tr>`).join("")}</tbody></table></div>`
-      : '<p class="mini muted">Nothing missing — every country and site in the region list has its INT and EXT group.</p>';
+    const head5 = (last) => `<thead><tr><th>Region</th><th>Country · site</th><th>INT</th><th>EXT</th><th>${last}</th></tr></thead>`;
+    const miTable = mi.length ? `<div class="dd-twrap"><table class="cg-table dd-table dd-gaps">${head5("Gap")}<tbody>${mi.map((g) => `<tr><td>${esc(g.region)}</td><td><b>${esc(g.place)}</b></td><td>${cell(g.int, g.wantInt, g.viaInt)}</td><td>${cell(g.ext, g.wantExt, g.viaExt)}</td><td class="mini">${esc(g.kind === "nogroup" ? "in the region list, no deploy group" : gapWhat(g))}</td></tr>`).join("")}</tbody></table></div>`
+      : '<p class="mini muted">Nothing missing — every country and site in the region list has its INT and EXT group, or a site falls back on its country group.</p>';
+    const viTable = vi.length ? `<div class="dd-twrap"><table class="cg-table dd-table dd-gaps">${head5("Covered by")}<tbody>${vi.map((g) => `<tr><td>${esc(g.region)}</td><td><b>${esc(g.place)}</b></td><td>${cell(g.int, g.wantInt, g.viaInt)}</td><td>${cell(g.ext, g.wantExt, g.viaExt)}</td><td class="mini">${esc(viaWhat(g))}</td></tr>`).join("")}</tbody></table></div>`
+      : '<p class="mini muted">No site leans on its country group — every site in the region list has groups of its own.</p>';
     const nlTable = nl.length ? `<div class="dd-twrap"><table class="cg-table dd-table dd-gaps"><thead><tr><th>Region</th><th>Deploy group</th><th class="dd-num">Members</th><th>State</th><th>Why</th></tr></thead><tbody>${nl.map((g) => `<tr><td>${esc(g.region)}</td><td>${o.app ? `<button type="button" class="dd-link" data-dd-jumpname="${esc(g.group)}" title="Go to its row">${esc(g.group)}</button>` : `<b>${esc(g.group)}</b>`}</td><td class="dd-num">${fmt(g.members)}</td><td>${g.state === "ro" ? pill("report-only only", "warn") : pill("no live policy")}</td><td class="mini">${esc(g.why)}</td></tr>`).join("")}</tbody></table></div>`
       : '<p class="mini muted">Every deploy group here is live — an enforced policy reaches each one.</p>';
     const scope = region ? ` · ${esc(region)}` : "";
-    if (!o.app) return `<section class="dd-panel" aria-label="What's missing"><h4>Missing${scope} — ${fmt(mi.length)}</h4>${miTable}<h4 style="margin-top:14px">Not live${scope} — ${fmt(nl.length)}</h4>${nlTable}</section>`;
-    const kind = o.gaps === "notlive" ? "notlive" : "missing";
+    if (!o.app) return `<section class="dd-panel" aria-label="What's missing"><h4>Missing${scope} — ${fmt(mi.length)}</h4>${miTable}<h4 style="margin-top:14px">Via country${scope} — ${fmt(vi.length)}</h4>${viTable}<h4 style="margin-top:14px">Not live${scope} — ${fmt(nl.length)}</h4>${nlTable}</section>`;
+    const kind = o.gaps === "notlive" || o.gaps === "via" ? o.gaps : "missing";
     return `<section class="dd-panel" aria-label="What's missing"><div class="dd-panel-head"><div class="dd-ctrl"><h4>What's missing${scope}</h4>
-      <button type="button" class="fchip${kind === "missing" ? " active" : ""}" data-dd-gaps="missing">Missing · ${fmt(mi.length)}</button><button type="button" class="fchip${kind === "notlive" ? " active" : ""}" data-dd-gaps="notlive">Not live · ${fmt(nl.length)}</button></div>
+      <button type="button" class="fchip${kind === "missing" ? " active" : ""}" data-dd-gaps="missing">Missing · ${fmt(mi.length)}</button><button type="button" class="fchip${kind === "via" ? " active" : ""}" data-dd-gaps="via">Via country · ${fmt(vi.length)}</button><button type="button" class="fchip${kind === "notlive" ? " active" : ""}" data-dd-gaps="notlive">Not live · ${fmt(nl.length)}</button></div>
       <div class="dd-ctrl"><button type="button" class="btn" data-dd-gapcopy="${kind}">Copy list</button><button type="button" class="btn" data-dd-gapcsv="${kind}">Export CSV</button></div></div>
-      <p class="mini muted" style="margin:0 0 8px">${kind === "missing" ? "A country or site in the 🗺 region list with no deploy group, or with only one of its INT and EXT twins. A missing chip looks the name up in 👥 CA groups." : "A deploy group that exists and that no enforced policy reaches — report-only at best, or nothing at all."}</p>
-      ${kind === "missing" ? miTable : nlTable}</section>`;
+      <p class="mini muted" style="margin:0 0 8px">${kind === "missing" ? "A country or site in the 🗺 region list with no deploy group, or with only one of its INT and EXT twins — a site counts as covered on a side where its country group exists. A missing chip looks the name up in 👥 CA groups." : kind === "via" ? "A site in the region list with no group of its own on a side, whose country group exists there — its people are counted and targeted through the country group. Not a gap; give it a site group only if it should go live on its own." : "A deploy group that exists and that no enforced policy reaches — report-only at best, or nothing at all."}</p>
+      ${kind === "missing" ? miTable : kind === "via" ? viTable : nlTable}</section>`;
   }
 
   function html(m, opts) {
@@ -783,7 +812,7 @@ ${"" /* shared with css/app.css — keep the two in step */}
 .dd-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}.dd-ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}details.dd-fold summary{cursor:pointer;font-weight:600;font-size:13px}details.dd-fold[open] summary{margin-bottom:10px}
 .dd-who{color:var(--dd-on);font-weight:600;text-decoration:none}
 .dd-rtop{margin-bottom:6px}.dd-rrows{margin:0 0 14px}.dd-rrow{display:grid;grid-template-columns:180px minmax(0,1fr);gap:10px;align-items:start;padding:7px 6px;border-top:1px solid var(--line)}.dd-rrow.on{background:var(--warn-bg)}.dd-rrow .dd-chips{margin:0}.dd-rlab{font:inherit;text-align:left;background:none;border:0;padding:3px 0;cursor:pointer;color:inherit}.dd-rlab b{display:block;font-size:13px}.dd-rlab small{display:block;font-size:11.5px;color:var(--muted)}
-.dd-rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}.dd-rcard{font:inherit;color:inherit;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);text-align:center;cursor:pointer}.dd-rcard.active{border:2px solid var(--dd-report);padding:9px}.dd-rname{font-size:13px}.dd-rcharts{display:flex;align-items:center;gap:8px}.dd-rdonut{position:relative;width:96px;height:96px}.dd-rdonut .dd-svg{width:96px;height:96px}.dd-rdonut .dd-center b{font-size:18px}.dd-rpie .dd-svg{width:56px;height:56px}.dd-rleg{margin-top:10px}.dd-pill.dd-gap-ok{background:var(--ok-bg);color:var(--dd-on);border-color:transparent;cursor:pointer}button.dd-pill{font:inherit;font-size:11px;font-weight:600;cursor:pointer}@media(max-width:600px){.dd-rrow{grid-template-columns:minmax(0,1fr)}}`;
+.dd-rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}.dd-rcard{font:inherit;color:inherit;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);text-align:center;cursor:pointer}.dd-rcard.active{border:2px solid var(--dd-report);padding:9px}.dd-rname{font-size:13px}.dd-rcharts{display:flex;align-items:center;gap:8px}.dd-rdonut{position:relative;width:96px;height:96px}.dd-rdonut .dd-svg{width:96px;height:96px}.dd-rdonut .dd-center b{font-size:18px}.dd-rpie .dd-svg{width:56px;height:56px}.dd-rleg{margin-top:10px}.dd-pill.dd-gap-ok{background:var(--ok-bg);color:var(--dd-on);border-color:transparent;cursor:pointer}.dd-pill.dd-gap-via{background:var(--soft);color:var(--muted);border-color:transparent;cursor:pointer}button.dd-pill{font:inherit;font-size:11px;font-weight:600;cursor:pointer}@media(max-width:600px){.dd-rrow{grid-template-columns:minmax(0,1fr)}}`;
 
   function exportHtml(m, meta) {
     const mt = meta || {};

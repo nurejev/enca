@@ -26460,10 +26460,10 @@ This is a directory write. Nothing else changes.`)) return;
     const t = e.target;
     const run = t.closest("[data-ddrun]"); if (run) { $("ddBody").innerHTML = ddProg.panel("Reading the deployment…"); readDeployDash(); return; }
     const chip = t.closest("[data-dd-chip]"); if (chip) { ddGroup = chip.dataset.ddChip || ""; ddRegion = ""; renderDeployDash(); return; }
-    const gk = t.closest("[data-dd-gaps]"); if (gk) { ddGaps = gk.dataset.ddGaps === "notlive" ? "notlive" : "missing"; renderDeployDash(); return; }
+    const gk = t.closest("[data-dd-gaps]"); if (gk) { ddGaps = ["notlive", "via"].includes(gk.dataset.ddGaps) ? gk.dataset.ddGaps : "missing"; renderDeployDash(); return; }
     const gc = t.closest("[data-dd-gapcopy]");
     if (gc) { const txt = DeployDash.gapsText(ddModel, gc.dataset.ddGapcopy, ddRegion); try { await navigator.clipboard.writeText(txt); toast(`Copied — ${esc(txt.split("\n")[0])}`); } catch (err) { downloadText("ENCA-rollout-gaps", "txt", "text/plain", txt); toast("The clipboard is blocked here — saved as a text file instead"); } return; }
-    const gv = t.closest("[data-dd-gapcsv]"); if (gv) { downloadText(`ENCA-rollout-${gv.dataset.ddGapcsv === "notlive" ? "not-live" : "missing"}`, "csv", "text/csv", DeployDash.gapsCsv(ddModel, gv.dataset.ddGapcsv, ddRegion)); return; }
+    const gv = t.closest("[data-dd-gapcsv]"); if (gv) { downloadText(`ENCA-rollout-${{ notlive: "not-live", via: "via-country" }[gv.dataset.ddGapcsv] || "missing"}`, "csv", "text/csv", DeployDash.gapsCsv(ddModel, gv.dataset.ddGapcsv, ddRegion)); return; }
     const jn = t.closest("[data-dd-jumpname]");
     if (jn) {
       const g = ddModel && ddModel.groups.find((r) => r.name === jn.dataset.ddJumpname); if (!g || !g.id) return;

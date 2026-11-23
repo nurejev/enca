@@ -428,7 +428,8 @@ test("gaps: missing = no group or one twin; not live = a group no enforced polic
   const regions = [{ region: "Euro", code: "NL", city: "" }, { region: "Euro", code: "NL", city: "Breda" }, { region: "BAMSCA", code: "BD", city: "" }];
   const m = DeployDash.build(Object.assign(f, { regions }));
   const mi = m.gaps.missing.map((g) => `${g.region}/${g.place}/${g.kind}`);
-  assert.deepEqual(mi, ["Euro/NL · Breda/nogroup", "BAMSCA/BD/twin"]);
+  assert.deepEqual(mi, ["BAMSCA/BD/twin"], "NL · Breda has no group of its own but INT-NL and EXT-NL cover it (33605)");
+  assert.deepEqual(m.gaps.via.map((g) => `${g.place}/${g.viaInt}/${g.viaExt}`), ["NL · Breda/CAD-SEC-U-DG-INT-NL/CAD-SEC-U-DG-EXT-NL"]);
   const bd = m.gaps.missing.find((g) => g.place === "BD");
   assert.equal(bd.ext, null); assert.equal(bd.wantExt, "CAD-SEC-U-DG-EXT-BD");
   const nl = m.gaps.notlive.map((g) => g.group);
@@ -442,7 +443,7 @@ test("gaps: missing = no group or one twin; not live = a group no enforced polic
   assert.match(h, /data-dd-gaps="notlive">Not live · /);
   assert.match(h, /data-dd-cg="CAD-SEC-U-DG-EXT-BD"/);
   const x = DeployDash.exportHtml(m, {});
-  assert.match(x, /Missing — 2/); assert.match(x, /Not live — /);
+  assert.match(x, /Missing — 1/); assert.match(x, /Via country — 1/); assert.match(x, /Not live — /);
   assert.equal(DeployDash.build(fixture()).gaps.missing.length, 0, "no region list → no gaps panel data");
 });
 
@@ -468,4 +469,31 @@ test("country minus its sites: INT-NL counts the rest of NL, the site rows keep 
   assert.match(h, /3 in the group − 2 counted in its sites \(Amsterdam 2\) = <b>1 rest of NL<\/b>/);
   assert.match(h, /site of INT-NL — counted here, not under INT-NL/);
   assert.match(DeployDash.toCsv(m), /members_in_group,counted_in_sites/);
+});
+
+// ---- 0.7.2 (33605): a site falls back on its country group, per side
+test("via country: a site with no group of its own is covered by its country group on that side; a side with neither is missing", () => {
+  const f = fixture();
+  f.groups.push({ key: "INT-PL", name: "CAD-SEC-U-DG-INT-PL", id: "g-ipl", direct: set("d"), nested: set() });
+  f.groups.push({ key: "EXT-PL", name: "CAD-SEC-U-DG-EXT-PL", id: "g-epl", direct: set("e"), nested: set() });
+  f.groups.push({ key: "INT-NG", name: "CAD-SEC-U-DG-INT-NG", id: "g-ing", direct: set("d"), nested: set() });
+  f.groups.push({ key: "INT-NL-Ams", name: "CAD-SEC-U-DG-INT-NL-Ams", id: "g-ia", direct: set("a"), nested: set() });
+  f.groups.push({ key: "EXT-NL", name: "CAD-SEC-U-DG-EXT-NL", id: "g-en", direct: set("e"), nested: set() });
+  f.policies.push({ id: "p9", name: "CA240-PL", state: "enabled", includeGroups: ["g-ipl", "g-epl"], excludeGroups: [], excludeUsers: [], excludeRoles: [] });
+  const regions = [["Euro", "PL", ""], ["Euro", "PL", "Warszawa"], ["BAMSCA", "NG", ""], ["BAMSCA", "NG", "Lagos"], ["Euro", "NL", ""], ["Euro", "NL", "Ams"], ["Euro", "PT", ""]].map(([region, code, city]) => ({ region, code, city }));
+  const m = DeployDash.build(Object.assign(f, { regions }));
+  const via = m.gaps.via.map((g) => g.place);
+  assert.deepEqual(via, ["NL · Ams", "PL · Warszawa"], "Warszawa via INT-PL and EXT-PL; Amsterdam own INT, EXT via EXT-NL");
+  const w = m.gaps.via.find((g) => g.place === "PL · Warszawa");
+  assert.equal(w.viaIntLive, true); assert.equal(w.viaExtLive, true);
+  const mi = Object.fromEntries(m.gaps.missing.map((g) => [g.place, g]));
+  assert.equal(mi["NG · Lagos"].kind, "site", "INT via INT-NG, EXT has neither EXT-NG-Lagos nor EXT-NG");
+  assert.equal(mi["NG · Lagos"].viaInt, "CAD-SEC-U-DG-INT-NG");
+  assert.match(DeployDash.gapsText(m, "missing"), /EXT side uncovered — no CAD-SEC-U-DG-EXT-NG-Lagos and no CAD-SEC-U-DG-EXT-NG to fall back on/);
+  assert.equal(mi["NG"].kind, "twin"); assert.equal(mi["PT"].kind, "nogroup");
+  assert.equal(mi["NL"].kind, "twin", "the country NL has only EXT-NL — a country has nothing to fall back on");
+  const h = DeployDash.html(m, { app: true, gaps: "via" });
+  assert.match(h, /data-dd-gaps="via">Via country · 2/);
+  assert.match(h, /via INT-PL/);
+  assert.match(DeployDash.gapsCsv(m, "via"), /^region,country_site,int_group,ext_group,int_via,ext_via,covered_by/);
 });
