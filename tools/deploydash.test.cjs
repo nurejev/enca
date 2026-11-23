@@ -416,3 +416,32 @@ test("build: regions aggregate coverage and exclusions over their groups; html n
   assert.equal(flat.regionsOn, false);
   assert.doesNotMatch(DeployDash.html(flat, { app: true }), /data-dd-region/, "no list → the flat chip row");
 });
+
+// ---- 0.7.0 (33603): what's missing — Missing and Not live, two lists
+test("gaps: missing = no group or one twin; not live = a group no enforced policy reaches; region narrows", () => {
+  const f = fixture();
+  f.groups.push({ key: "INT-NL", name: "CAD-SEC-U-DG-INT-NL", id: "g-inl", direct: set("d"), nested: set() });
+  f.groups.push({ key: "EXT-NL", name: "CAD-SEC-U-DG-EXT-NL", id: "g-enl", direct: set("e"), nested: set() });
+  f.groups.push({ key: "INT-BD", name: "CAD-SEC-U-DG-INT-BD", id: "g-ibd", direct: set("e"), nested: set() });
+  f.policies.push({ id: "p6", name: "CA220-NL", state: "enabled", includeGroups: ["g-inl", "g-enl"], excludeGroups: [], excludeUsers: [], excludeRoles: [] });
+  f.policies.push({ id: "p7", name: "CA221-BD", state: "enabledForReportingButNotEnforced", includeGroups: ["g-ibd"], excludeGroups: [], excludeUsers: [], excludeRoles: [] });
+  const regions = [{ region: "Euro", code: "NL", city: "" }, { region: "Euro", code: "NL", city: "Breda" }, { region: "BAMSCA", code: "BD", city: "" }];
+  const m = DeployDash.build(Object.assign(f, { regions }));
+  const mi = m.gaps.missing.map((g) => `${g.region}/${g.place}/${g.kind}`);
+  assert.deepEqual(mi, ["Euro/NL · Breda/nogroup", "BAMSCA/BD/twin"]);
+  const bd = m.gaps.missing.find((g) => g.place === "BD");
+  assert.equal(bd.ext, null); assert.equal(bd.wantExt, "CAD-SEC-U-DG-EXT-BD");
+  const nl = m.gaps.notlive.map((g) => g.group);
+  assert.ok(nl.includes("CAD-SEC-U-DG-INT-BD"), "report-only only is not live");
+  assert.ok(!nl.includes("CAD-SEC-U-DG-INT-NL"), "an enforced policy reaches NL");
+  assert.equal(m.gaps.notlive.find((g) => g.group === "CAD-SEC-U-DG-INT-BD").state, "ro");
+  const txt = DeployDash.gapsText(m, "missing", "BAMSCA");
+  assert.match(txt, /— 1\n/); assert.match(txt, /CAD-SEC-U-DG-EXT-BD/); assert.doesNotMatch(txt, /Breda/);
+  assert.match(DeployDash.gapsCsv(m, "notlive"), /^region,deploy_group,members,state,why/);
+  const h = DeployDash.html(m, { app: true, gaps: "missing" });
+  assert.match(h, /data-dd-gaps="notlive">Not live · /);
+  assert.match(h, /data-dd-cg="CAD-SEC-U-DG-EXT-BD"/);
+  const x = DeployDash.exportHtml(m, {});
+  assert.match(x, /Missing — 2/); assert.match(x, /Not live — /);
+  assert.equal(DeployDash.build(fixture()).gaps.missing.length, 0, "no region list → no gaps panel data");
+});

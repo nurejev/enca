@@ -96,7 +96,7 @@ const DeployDash = (() => {
     ["Americas", "US MX CA"],
     ["Asia-Pacific", "CN ID VN PH JP MY TH KR AU SG HK"],
     ["Italy", "IT"],
-    ["BAMSCA", "IN BR BD LK NG NG-Lagos NP AE UAE ZA RU KZ TR"],
+    ["BAMSCA", "IN BR BD LK NG NG-Lagos NP AE ZA RU KZ TR"],
   ].flatMap(([region, list]) => list.split(" ").map((t) => { const [code, ...c] = t.split("-"); return { region, code, city: c.join("-") }; }));
   const CORE = "Core", NOREGION = "No region";
   // The country and city a deploy group's key names, or null for a Core key.
@@ -361,6 +361,43 @@ const DeployDash = (() => {
     //     regions, in both pies), by her strongest coverage state and her
     //     first exclusion route over the region's groups. Left out of every
     //     deploy group has no region — it stays the tenant's number.
+    // --- the rollout's gaps (0.7.0, 33603 — Mihai 23 Nov: "need an easy way
+    //     to list which country/group is missing for this rollout", and
+    //     "missing is separate"). Two lists, never mixed:
+    //     MISSING  a place the region list names (code, or code + city)
+    //              with no INT and no EXT group — or one twin of the pair
+    //              (INT-NL there, EXT-NL not). A key with no INT-/EXT-
+    //              prefix counts for both sides.
+    //     NOT LIVE a deploy group that exists and that no enforced policy
+    //              reaches (report-only at best, or nothing).
+    const gaps = { missing: [], notlive: [] };
+    if (regionList.length) {
+      const places = new Map();     // "code|city" → { region, code, city, int, ext }
+      const placeKey = (code, city) => `${code}|${city || ""}`.toLowerCase();
+      regionList.forEach((r) => { const k = placeKey(r.code, r.city); if (!places.has(k)) places.set(k, { region: r.region, code: r.code.toUpperCase(), city: r.city || "", int: null, ext: null }); });
+      rows.forEach((r) => {
+        if (!r.found) return;
+        const p = placeOf(r.key); if (!p) return;
+        const k = placeKey(p.code, p.city);
+        const e = places.get(k) || places.set(k, { region: r.region, code: p.code.toUpperCase(), city: p.city, int: null, ext: null }).get(k);
+        const side = /^INT-/i.test(r.key) ? "int" : /^EXT-/i.test(r.key) ? "ext" : "both";
+        if (side === "both") { e.int = e.int || r; e.ext = e.ext || r; } else e[side] = r;
+      });
+      const want = (e, side) => `CAD-SEC-U-DG-${side}-${e.code}${e.city ? `-${e.city}` : ""}`;
+      places.forEach((e) => {
+        const label = e.city ? `${e.code} · ${e.city}` : e.code;
+        if (!e.int && !e.ext) gaps.missing.push({ region: e.region, place: label, kind: "nogroup", int: null, ext: null, wantInt: want(e, "INT"), wantExt: want(e, "EXT") });
+        else if (!e.int || !e.ext) gaps.missing.push({ region: e.region, place: label, kind: "twin", int: e.int ? e.int.name : null, ext: e.ext ? e.ext.name : null, wantInt: want(e, "INT"), wantExt: want(e, "EXT") });
+      });
+      const order = [CORE, ...regionOrderOf(regionList), NOREGION];
+      const ro = (n) => { const i = order.indexOf(n); return i < 0 ? order.length : i; };
+      gaps.missing.sort((a, b) => ro(a.region) - ro(b.region) || a.place.localeCompare(b.place));
+      rows.filter((r) => r.found && !r.live).forEach((r) => {
+        const why = r.pol.ro ? `report-only only — ${plural(r.pol.ro, "report-only policy", "report-only policies")} reach it` : r.members ? "no live policy reaches it" : "empty group, no live policy";
+        gaps.notlive.push({ region: r.region, group: r.name, id: r.id, key: r.key, state: r.pol.ro ? "ro" : "none", members: r.members, why });
+      });
+      gaps.notlive.sort((a, b) => ro(a.region) - ro(b.region) || a.group.localeCompare(b.group));
+    }
     const regions = [];
     if (regionList.length) {
       const by = new Map();
@@ -385,7 +422,7 @@ const DeployDash = (() => {
       readAt: I.readAt || null, tenant: I.tenant || "",
       total: { users: users.length, enabled: enabled.length, disabled, guests: enabled.filter((u) => lc(u.userType) === "guest").length },
       cov, leftOut, noPolicy, route, pol: polTotal, excl: exclTotal, exclMembers,
-      groups: rows, exclList, biggest, regions, regionsOn: regionList.length > 0,
+      groups: rows, exclList, biggest, regions, regionsOn: regionList.length > 0, gaps,
       readinessRead: readiness.size > 0, readinessAt: I.readinessAt || null,
       notFound: rows.filter((r) => !r.found).map((r) => r.name),
     };
@@ -602,6 +639,43 @@ const DeployDash = (() => {
     return `<table class="cg-table dd-table"><thead><tr><th>Region</th><th>Country codes · cities</th></tr></thead><tbody>${order.map((n) => `<tr><td><b>${esc(n)}</b></td><td>${list.filter((r) => r.region === n).map((r) => `<span class="dd-pill">${esc(r.code)}${r.city ? ` · ${esc(r.city)}` : ""}</span>`).join(" ")}</td></tr>`).join("")}</tbody></table>`;
   }
 
+  // What's missing (0.7.0): two lists, chosen by a segment — Missing (no
+  // group, a twin missing) and Not live (a group no enforced policy
+  // reaches). The region filter narrows both; the export carries both.
+  const gapRows = (m, kind, region) => ((m.gaps && m.gaps[kind]) || []).filter((g) => !region || g.region === region);
+  function gapsText(m, kind, region) {
+    const L = gapRows(m, kind, region);
+    if (kind === "missing") return [`Missing deploy groups${region ? ` · ${region}` : ""} — ${L.length}`, ...L.map((g) => `${g.region}\t${g.place}\t${g.kind === "nogroup" ? `no group — ${g.wantInt}, ${g.wantExt}` : `twin missing — ${g.int ? g.wantExt : g.wantInt}`}`)].join("\n");
+    return [`Deploy groups not live${region ? ` · ${region}` : ""} — ${L.length}`, ...L.map((g) => `${g.region}\t${g.group}\t${g.members} members\t${g.why}`)].join("\n");
+  }
+  function gapsCsv(m, kind, region) {
+    const L = gapRows(m, kind, region);
+    const rows = kind === "missing"
+      ? [["region", "country_site", "gap", "int_group", "ext_group", "missing_name"], ...L.map((g) => [g.region, g.place, g.kind === "nogroup" ? "no group" : "twin missing", g.int || "", g.ext || "", g.kind === "nogroup" ? `${g.wantInt}; ${g.wantExt}` : (g.int ? g.wantExt : g.wantInt)])]
+      : [["region", "deploy_group", "members", "state", "why"], ...L.map((g) => [g.region, g.group, g.members, g.state === "ro" ? "report-only only" : "no live policy", g.why])];
+    return rows.map((r) => r.map(csvCell).join(",")).join("\r\n");
+  }
+  function gapsPanel(m, o) {
+    if (!m.regionsOn || !m.gaps) return "";
+    const region = o.region && m.regionsOn ? o.region : "";
+    const mi = gapRows(m, "missing", region), nl = gapRows(m, "notlive", region);
+    const cell = (name, want) => name
+      ? (o.app ? `<button type="button" class="dd-pill dd-gap-ok" data-dd-jumpname="${esc(name)}" title="Go to its row">${esc(keyOf(name))}</button>` : `<span class="dd-pill dd-gap-ok">${esc(keyOf(name))}</span>`)
+      : (o.app ? `<button type="button" class="dd-pill bad" data-dd-cg="${esc(want)}" title="Look for ${esc(want)} in 👥 CA groups — ② Create makes it">missing</button>` : `<span class="dd-pill bad" title="${esc(want)}">missing</span>`);
+    const miTable = mi.length ? `<div class="dd-twrap"><table class="cg-table dd-table dd-gaps"><thead><tr><th>Region</th><th>Country · site</th><th>INT</th><th>EXT</th><th>Gap</th></tr></thead><tbody>${mi.map((g) => `<tr><td>${esc(g.region)}</td><td><b>${esc(g.place)}</b></td><td>${cell(g.int, g.wantInt)}</td><td>${cell(g.ext, g.wantExt)}</td><td class="mini">${g.kind === "nogroup" ? "in the region list, no deploy group" : `twin missing — ${esc(g.int ? g.wantExt : g.wantInt)}`}</td></tr>`).join("")}</tbody></table></div>`
+      : '<p class="mini muted">Nothing missing — every country and site in the region list has its INT and EXT group.</p>';
+    const nlTable = nl.length ? `<div class="dd-twrap"><table class="cg-table dd-table dd-gaps"><thead><tr><th>Region</th><th>Deploy group</th><th class="dd-num">Members</th><th>State</th><th>Why</th></tr></thead><tbody>${nl.map((g) => `<tr><td>${esc(g.region)}</td><td>${o.app ? `<button type="button" class="dd-link" data-dd-jumpname="${esc(g.group)}" title="Go to its row">${esc(g.group)}</button>` : `<b>${esc(g.group)}</b>`}</td><td class="dd-num">${fmt(g.members)}</td><td>${g.state === "ro" ? pill("report-only only", "warn") : pill("no live policy")}</td><td class="mini">${esc(g.why)}</td></tr>`).join("")}</tbody></table></div>`
+      : '<p class="mini muted">Every deploy group here is live — an enforced policy reaches each one.</p>';
+    const scope = region ? ` · ${esc(region)}` : "";
+    if (!o.app) return `<section class="dd-panel" aria-label="What's missing"><h4>Missing${scope} — ${fmt(mi.length)}</h4>${miTable}<h4 style="margin-top:14px">Not live${scope} — ${fmt(nl.length)}</h4>${nlTable}</section>`;
+    const kind = o.gaps === "notlive" ? "notlive" : "missing";
+    return `<section class="dd-panel" aria-label="What's missing"><div class="dd-panel-head"><div class="dd-ctrl"><h4>What's missing${scope}</h4>
+      <button type="button" class="fchip${kind === "missing" ? " active" : ""}" data-dd-gaps="missing">Missing · ${fmt(mi.length)}</button><button type="button" class="fchip${kind === "notlive" ? " active" : ""}" data-dd-gaps="notlive">Not live · ${fmt(nl.length)}</button></div>
+      <div class="dd-ctrl"><button type="button" class="btn" data-dd-gapcopy="${kind}">Copy list</button><button type="button" class="btn" data-dd-gapcsv="${kind}">Export CSV</button></div></div>
+      <p class="mini muted" style="margin:0 0 8px">${kind === "missing" ? "A country or site in the 🗺 region list with no deploy group, or with only one of its INT and EXT twins. A missing chip looks the name up in 👥 CA groups." : "A deploy group that exists and that no enforced policy reaches — report-only at best, or nothing at all."}</p>
+      ${kind === "missing" ? miTable : nlTable}</section>`;
+  }
+
   function html(m, opts) {
     const o = opts || {};
     const g1 = o.group ? m.groups.find((r) => r.key === o.group) : null;
@@ -622,7 +696,7 @@ const DeployDash = (() => {
     const list = o.app && (o.list === "leftout" || o.list === "nopolicy") ? listTable(m, o, o.list) : "";
     const allLists = !o.app ? listTable(m, o, "nopolicy") + listTable(m, o, "leftout") : "";
     const foot = `<p class="mini muted dd-foot">Group membership and policy reach are separate checks: a deploy-group member is a target, not proof the policy applied. A read time is not a sign-in time. Disabled accounts are counted apart and never as left out. Missing report-only data stays unknown — never counted as safe.</p>`;
-    return `<div class="dd">${covStrip(m, o)}${chips}${regionPanel(m, o)}<div class="dd-grid">${cards}</div>${missing}${list}${groupsTable(m, o)}${allLists}${exclTable(m, o)}${foot}</div>`;
+    return `<div class="dd">${covStrip(m, o)}${chips}${regionPanel(m, o)}${gapsPanel(m, o)}<div class="dd-grid">${cards}</div>${missing}${list}${groupsTable(m, o)}${allLists}${exclTable(m, o)}${foot}</div>`;
   }
 
   // ------------------------------------------------------------- csv --
@@ -680,7 +754,7 @@ ${"" /* shared with css/app.css — keep the two in step */}
 .dd-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}.dd-ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}details.dd-fold summary{cursor:pointer;font-weight:600;font-size:13px}details.dd-fold[open] summary{margin-bottom:10px}
 .dd-who{color:var(--dd-on);font-weight:600;text-decoration:none}
 .dd-rtop{margin-bottom:6px}.dd-rrows{margin:0 0 14px}.dd-rrow{display:grid;grid-template-columns:180px minmax(0,1fr);gap:10px;align-items:start;padding:7px 6px;border-top:1px solid var(--line)}.dd-rrow.on{background:var(--warn-bg)}.dd-rrow .dd-chips{margin:0}.dd-rlab{font:inherit;text-align:left;background:none;border:0;padding:3px 0;cursor:pointer;color:inherit}.dd-rlab b{display:block;font-size:13px}.dd-rlab small{display:block;font-size:11.5px;color:var(--muted)}
-.dd-rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}.dd-rcard{font:inherit;color:inherit;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);text-align:center;cursor:pointer}.dd-rcard.active{border:2px solid var(--dd-report);padding:9px}.dd-rname{font-size:13px}.dd-rcharts{display:flex;align-items:center;gap:8px}.dd-rdonut{position:relative;width:96px;height:96px}.dd-rdonut .dd-svg{width:96px;height:96px}.dd-rdonut .dd-center b{font-size:18px}.dd-rpie .dd-svg{width:56px;height:56px}.dd-rleg{margin-top:10px}@media(max-width:600px){.dd-rrow{grid-template-columns:minmax(0,1fr)}}`;
+.dd-rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}.dd-rcard{font:inherit;color:inherit;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);text-align:center;cursor:pointer}.dd-rcard.active{border:2px solid var(--dd-report);padding:9px}.dd-rname{font-size:13px}.dd-rcharts{display:flex;align-items:center;gap:8px}.dd-rdonut{position:relative;width:96px;height:96px}.dd-rdonut .dd-svg{width:96px;height:96px}.dd-rdonut .dd-center b{font-size:18px}.dd-rpie .dd-svg{width:56px;height:56px}.dd-rleg{margin-top:10px}.dd-pill.dd-gap-ok{background:var(--ok-bg);color:var(--dd-on);border-color:transparent;cursor:pointer}button.dd-pill{font:inherit;font-size:11px;font-weight:600;cursor:pointer}@media(max-width:600px){.dd-rrow{grid-template-columns:minmax(0,1fr)}}`;
 
   function exportHtml(m, meta) {
     const mt = meta || {};
@@ -693,6 +767,6 @@ ${html(m, { app: false })}
 </div></body></html>`;
   }
 
-  return { build, html, toCsv, exportHtml, readinessOf, keyOf, sortNames, ORDER, SER, VERDICT, CSS, DEFAULT_REGIONS, regionFor, parseRegionCsv, regionsCsv, regionListHtml };
+  return { build, html, toCsv, exportHtml, readinessOf, keyOf, sortNames, ORDER, SER, VERDICT, CSS, DEFAULT_REGIONS, regionFor, parseRegionCsv, regionsCsv, regionListHtml, gapsText, gapsCsv };
 })();
 if (typeof module !== "undefined") module.exports = DeployDash;

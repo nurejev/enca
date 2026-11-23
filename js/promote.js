@@ -182,6 +182,29 @@ const PROMOTE = {
 
   items: [
     {
+      n: 395,
+      ws: "ca",
+      requires: [394],
+      requiresWhy: "the gaps are read against the dashboard's region list and its region rows, both from 394.",
+      title: "📊 Deployment dashboard — what's missing for the rollout: Missing (no group, a twin missing) and Not live, two lists with Copy list and CSV (T54 0.7.0)",
+      tools: ["Deployment dashboard"],
+      builds: [33603],
+      risk: "medium",
+      what: "js/deploydash.js: build() returns m.gaps — missing (every place of the region list, code or code + city, with no INT and no EXT group, or one twin only, with the names the missing groups would carry; groups whose place is not in the list are counted too) and notlive (found groups no enforced policy reaches, report-only only or nothing); gapsPanel (a Missing / Not live segment, region-narrowed; the export renders both), gapsText, gapsCsv. app.js: ddGaps state, the segment, Copy list (clipboard, text file fallback), Export CSV, jump to a row by name. The default list keeps AE and drops UAE.",
+      why: "Mihai, 23 Nov 2026, with a screenshot of the Euro row: an easy way to list which country or group is missing for this rollout; on the mockup he chose missing as a separate list from not live, then go build. Medium: a reading aid on a read-only page.",
+      test: [
+        "Demo (?demo=1), 📊 Deployment dashboard → ▶ Read: What's missing sits under the region rows with Missing · N and Not live · N; Missing lists the default list's countries the demo has no groups for, each INT and EXT cell a red missing chip.",
+        "Click a red missing chip: 👥 CA groups opens searching CAD-SEC-U-DG-INT- plus the country code (or EXT-); ② Create can make it.",
+        "Not live: lists the groups with no enforced policy, report-only ones with the warn pill; click a name: the page scrolls to its row and flashes it.",
+        "Pick Euro in the region row: both counts and both lists narrow to Euro; All groups widens them again.",
+        "Copy list on Missing: paste into a mail — a title line with the count, then one tab-separated line per gap with the missing group name. Export CSV saves ENCA-rollout-missing.csv (or -not-live).",
+        "Import a region list where NL-Breda is a row and the tenant has no Breda group: NL · Breda appears under Missing as no group; a tenant with INT-BD and no EXT-BD shows BD as twin missing.",
+        "Export HTML: Missing — N and Not live — N, both tables, no script.",
+        "Real tenant (PVM): Missing names only the countries and sites the rollout really lacks; Not live matches the chips without the live tag.",
+        "node --test tools/*.test.cjs — all pass; node tools/check-plain-text.js clean.",
+      ],
+    },
+    {
       n: 394,
       ws: "ca",
       title: "📊 Deployment dashboard by region — region chip rows, a coverage ring and an exclusions pie per region, the dashboard's own region list with a default and a CSV import (T54 0.6.0)",

@@ -26180,7 +26180,7 @@ This is a directory write. Nothing else changes.`)) return;
   // page never waits for it.
   const DD_SEL = "id,userPrincipalName,displayName,userType,accountEnabled";
   const DD_PREFIX = "CAD-SEC-U-DG-";
-  let ddExOpen = new Set(); let ddModel = null, ddRaw = null, ddBusy = false, ddErr = null, ddGroup = "", ddRegion = "", ddList = "", ddReadiness = null, ddReadinessAt = null, ddRdBusy = false;
+  let ddExOpen = new Set(); let ddModel = null, ddRaw = null, ddBusy = false, ddErr = null, ddGroup = "", ddRegion = "", ddGaps = "missing", ddList = "", ddReadiness = null, ddReadinessAt = null, ddRdBusy = false;
   const ddProg = makeProgress("dd");
   const DD_HEAD_TEXT = '<p class="mini" style="margin:6px 0 0">The rollout as a picture: every enabled user in the tenant against the CAD-SEC-U-DG-* deploy groups — who is in which group and how, who is <b>left out</b> of every group, which policies reach each group and in what state, and how many members an <b>exclusion</b> takes back out again. Readiness per group is 🌊 Who is the wave\'s verdict, read on request. One page, exportable as HTML for people without ENCA. Nothing here writes.</p>';
 
@@ -26241,7 +26241,7 @@ This is a directory write. Nothing else changes.`)) return;
     if (!ddModel) return;
     ddPaintButtons();
     if (ddRegion && !(ddModel.regions || []).some((x) => x.name === ddRegion)) ddRegion = "";
-    $("ddBody").innerHTML = DeployDash.html(ddModel, { app: true, group: ddGroup, region: ddRegion, list: ddList, exOpen: ddExOpen });
+    $("ddBody").innerHTML = DeployDash.html(ddModel, { app: true, group: ddGroup, region: ddRegion, gaps: ddGaps, list: ddList, exOpen: ddExOpen });
     const strip = $("ddRead");
     if (strip) strip.innerHTML = ddRaw.times.map(([label, t]) => `<span>${esc(label)} · ${esc(new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</span>`).join("") + (ddReadinessAt ? `<span>Readiness (🌊) · ${esc(new Date(ddReadinessAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</span>` : "");
   }
@@ -26460,6 +26460,18 @@ This is a directory write. Nothing else changes.`)) return;
     const t = e.target;
     const run = t.closest("[data-ddrun]"); if (run) { $("ddBody").innerHTML = ddProg.panel("Reading the deployment…"); readDeployDash(); return; }
     const chip = t.closest("[data-dd-chip]"); if (chip) { ddGroup = chip.dataset.ddChip || ""; ddRegion = ""; renderDeployDash(); return; }
+    const gk = t.closest("[data-dd-gaps]"); if (gk) { ddGaps = gk.dataset.ddGaps === "notlive" ? "notlive" : "missing"; renderDeployDash(); return; }
+    const gc = t.closest("[data-dd-gapcopy]");
+    if (gc) { const txt = DeployDash.gapsText(ddModel, gc.dataset.ddGapcopy, ddRegion); try { await navigator.clipboard.writeText(txt); toast(`Copied — ${esc(txt.split("\n")[0])}`); } catch (err) { downloadText("ENCA-rollout-gaps", "txt", "text/plain", txt); toast("The clipboard is blocked here — saved as a text file instead"); } return; }
+    const gv = t.closest("[data-dd-gapcsv]"); if (gv) { downloadText(`ENCA-rollout-${gv.dataset.ddGapcsv === "notlive" ? "not-live" : "missing"}`, "csv", "text/csv", DeployDash.gapsCsv(ddModel, gv.dataset.ddGapcsv, ddRegion)); return; }
+    const jn = t.closest("[data-dd-jumpname]");
+    if (jn) {
+      const g = ddModel && ddModel.groups.find((r) => r.name === jn.dataset.ddJumpname); if (!g || !g.id) return;
+      if (ddGroup) { ddGroup = ""; renderDeployDash(); }
+      const row = $("ddBody").querySelector(`tr[data-dd-row="${CSS.escape(g.id)}"]`);
+      if (row) { row.scrollIntoView({ block: "center", behavior: "smooth" }); row.classList.add("dd-flash"); setTimeout(() => row.classList.remove("dd-flash"), 1600); }
+      return;
+    }
     const reg = t.closest("[data-dd-region]"); if (reg) { const n = reg.dataset.ddRegion || ""; ddRegion = ddRegion === n ? "" : n; ddGroup = ""; renderDeployDash(); return; }
     const list = t.closest("[data-dd-list]"); if (list) { ddList = list.dataset.ddList || ""; renderDeployDash(); if (ddList) { const el = $("ddBody").querySelector(".dd-list"); if (el) el.scrollIntoView({ block: "start", behavior: "smooth" }); } return; }
     const who = t.closest("[data-dd-who]"); if (who) { e.preventDefault(); $("woUser").value = who.dataset.ddWho; $("toolWhoIs").click(); runWhoIs(); return; }

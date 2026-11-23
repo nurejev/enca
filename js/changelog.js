@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33603, date: "2026-11-23", title: "📊 Deployment dashboard: what's missing for the rollout — missing groups and groups not live, two lists",
+    items: [
+      { kind: "new", tool: "Deployment dashboard", text: "📊 What's missing, under the region rows. Missing lists every country and site in the region list with no deploy group, or with only one of its INT and EXT twins, and the name the missing group would carry. Not live lists every deploy group that exists but that no enforced policy reaches. The two are separate lists; pick a region to narrow both. Copy list puts the list on the clipboard for a ticket or a mail, Export CSV saves it, and the HTML export carries both." },
+      { kind: "improved", tool: "Deployment dashboard", text: "📊 The default region list has AE for the Emirates and no longer UAE as well, so the country is not reported missing twice." },
+    ],
+  },
+  {
     build: 33602, date: "2026-11-20", title: "📊 Deployment dashboard: the deploy groups by region, with a coverage ring and an exclusions pie per region",
     items: [
       { kind: "improved", tool: "Deployment dashboard", text: "📊 The group chips are grouped by region — Core (GLO, INT, EXT and the other framework groups), then Euro, Americas, Asia-Pacific, Italy, BAMSCA and No region, one row each with how many of its groups are live. Click a region to see the coverage, route, policy and exclusion charts and the group table for that region's groups combined; click a group to see that one group, as before." },
