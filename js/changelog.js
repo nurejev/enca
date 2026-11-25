@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33606, date: "2026-11-25", title: "📊 Deployment dashboard: groups named UAE, POL or with a short city name join their region",
+    items: [
+      { kind: "fixed", tool: "Deployment dashboard", text: "📊 Deploy groups named INT-UAE, EXT-POL-Warszawa or INT-POL-SKARB landed in No region, and AE, PL · Warszawa and PL · Skarbimierz were listed missing beside them. The ISO three-letter code (POL, ARE, NLD …) and common spellings (UAE, UK) are now read as the two-letter code, and a short city name (SKARB) as the region list's city (Skarbimierz) when it matches one city of that country. The groups join their region and cover their country or site in What's missing; an imported region list with UAE in its code column is read as AE too." },
+    ],
+  },
+  {
     build: 33605, date: "2026-11-23", title: "📊 Deployment dashboard: a site covered through its country group is no longer missing — Via country",
     items: [
       { kind: "improved", tool: "Deployment dashboard", text: "📊 PL · Warszawa and PL · Skarbimierz were listed missing although their people sit in INT-PL and EXT-PL. A site with no group of its own now falls back on its country group, side by side: covered through the country group, it moves out of Missing into its own list, Via country, which says whether those country groups are live. A site covered on one side only stays in Missing and says which side is uncovered. Copy list and Export CSV work on the new list too." },

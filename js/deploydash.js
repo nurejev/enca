@@ -99,21 +99,48 @@ const DeployDash = (() => {
     ["BAMSCA", "IN BR BD LK NG NG-Lagos NP AE ZA RU KZ TR"],
   ].flatMap(([region, list]) => list.split(" ").map((t) => { const [code, ...c] = t.split("-"); return { region, code, city: c.join("-") }; }));
   const CORE = "Core", NOREGION = "No region";
+  // 0.7.3 (33606 — Mihai 25 Nov with a screenshot of No region holding
+  // INT/EXT-UAE, INT/EXT-POL-Warszawa and INT/EXT-POL-SKARB: "all these
+  // should be in their right regions; only SA-GLO and WID can stay out").
+  // A group name may carry the ISO three-letter code (POL, ARE) or a
+  // common spelling (UAE, UK) instead of the two-letter code the region
+  // list holds. They are read as the two-letter code everywhere — the
+  // region, a country's sites, What's missing and an imported list.
+  const CODE_ALIAS = {
+    UAE: "AE", UEA: "AE", UK: "GB",
+    NLD: "NL", GBR: "GB", BEL: "BE", LUX: "LU", CZE: "CZ", SVK: "SK", POL: "PL", DNK: "DK", FRA: "FR", CHE: "CH", ESP: "ES", PRT: "PT", GRC: "GR", DEU: "DE",
+    USA: "US", MEX: "MX", CAN: "CA", CHN: "CN", IDN: "ID", VNM: "VN", PHL: "PH", JPN: "JP", MYS: "MY", THA: "TH", KOR: "KR", AUS: "AU", SGP: "SG", HKG: "HK",
+    ITA: "IT", IND: "IN", BRA: "BR", BGD: "BD", LKA: "LK", NGA: "NG", NPL: "NP", ARE: "AE", ZAF: "ZA", RUS: "RU", KAZ: "KZ", TUR: "TR",
+  };
+  const canonCode = (c) => CODE_ALIAS[String(c || "").toUpperCase()] || String(c || "");
+  // A group's city may be a short form of the list's (POL-SKARB for
+  // PL · Skarbimierz): exact first, else the one city of that country in
+  // the list that starts with it (three letters at least). The group keeps
+  // its own name wherever it is shown.
+  function placeIn(key, list) {
+    const p = placeOf(key);
+    if (!p || !p.city || !list) return p;
+    const code = p.code.toLowerCase(), city = p.city.toLowerCase();
+    const cities = list.filter((r) => r && r.city && canonCode(r.code).toLowerCase() === code).map((r) => r.city);
+    if (cities.some((c) => c.toLowerCase() === city)) return p;
+    const hit = city.length >= 3 ? [...new Set(cities.filter((c) => c.toLowerCase().startsWith(city)))] : [];
+    return hit.length === 1 ? { code: p.code, city: hit[0] } : p;
+  }
   // The country and city a deploy group's key names, or null for a Core key.
   function placeOf(key) {
     const k = String(key || "");
     if (ORDER.some((o) => o.toLowerCase() === k.toLowerCase())) return null;
     const parts = k.replace(/^(INT|EXT)-/i, "").split("-");
     if (!/^[A-Za-z]{2,3}$/.test(parts[0])) return null;
-    return { code: parts[0], city: parts.slice(1).join("-") };
+    return { code: canonCode(parts[0]), city: parts.slice(1).join("-") };
   }
   function regionIndex(list) {
     const idx = new Map();
-    (list || []).forEach((r) => { if (!r || !r.region || !r.code) return; const k = `${r.code}|${r.city || ""}`.toLowerCase(); if (!idx.has(k)) idx.set(k, r.region); });
+    (list || []).forEach((r) => { if (!r || !r.region || !r.code) return; const k = `${canonCode(r.code)}|${r.city || ""}`.toLowerCase(); if (!idx.has(k)) idx.set(k, r.region); });
     return idx;
   }
   function regionFor(key, list, idx) {
-    const p = placeOf(key);
+    const p = placeIn(key, list);
     if (!p) return CORE;
     const I = idx || regionIndex(list);
     return (p.city && I.get(`${p.code}|${p.city}`.toLowerCase())) || I.get(`${p.code}|`.toLowerCase()) || NOREGION;
@@ -145,7 +172,7 @@ const DeployDash = (() => {
       const c = splitCsvLine(l), region = c[ix("region")] || "";
       if (shape === "group" && (lc(c[ix("ticked")]) === "no" || lc(c[ix("mode")]) === "ignore")) { skipped++; return; }
       let code = "", city = "";
-      if (shape === "code") { code = c[ix("code")] || ""; city = ix("city") >= 0 ? c[ix("city")] || "" : ""; }
+      if (shape === "code") { code = canonCode(c[ix("code")] || ""); city = ix("city") >= 0 ? c[ix("city")] || "" : ""; }
       else { const g = String(c[ix("group")] || ""); const tail = /USERS-/i.test(g) ? g.replace(/^.*USERS-/i, "") : g.replace(/^.*-DG-/i, ""); const p = placeOf(tail); if (p) { code = p.code; city = p.city; } }
       if (!region || !/^[A-Za-z]{2,3}$/.test(code)) { skipped++; return; }
       const k = `${code}|${city}`.toLowerCase();
@@ -396,10 +423,10 @@ const DeployDash = (() => {
     if (regionList.length) {
       const places = new Map();     // "code|city" → { region, code, city, int, ext }
       const placeKey = (code, city) => `${code}|${city || ""}`.toLowerCase();
-      regionList.forEach((r) => { const k = placeKey(r.code, r.city); if (!places.has(k)) places.set(k, { region: r.region, code: r.code.toUpperCase(), city: r.city || "", int: null, ext: null }); });
+      regionList.forEach((r) => { const k = placeKey(canonCode(r.code), r.city); if (!places.has(k)) places.set(k, { region: r.region, code: canonCode(r.code).toUpperCase(), city: r.city || "", int: null, ext: null }); });
       rows.forEach((r) => {
         if (!r.found) return;
-        const p = placeOf(r.key); if (!p) return;
+        const p = placeIn(r.key, regionList); if (!p) return;
         const k = placeKey(p.code, p.city);
         const e = places.get(k) || places.set(k, { region: r.region, code: p.code.toUpperCase(), city: p.city, int: null, ext: null }).get(k);
         const side = /^INT-/i.test(r.key) ? "int" : /^EXT-/i.test(r.key) ? "ext" : "both";

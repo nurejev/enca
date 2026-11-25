@@ -497,3 +497,20 @@ test("via country: a site with no group of its own is covered by its country gro
   assert.match(h, /via INT-PL/);
   assert.match(DeployDash.gapsCsv(m, "via"), /^region,country_site,int_group,ext_group,int_via,ext_via,covered_by/);
 });
+
+test("0.7.3: UAE / UEA read as AE, POL as PL, UK as GB, a short city (SKARB) as the list's (Skarbimierz); SA-GLO and WID stay No region", () => {
+  const f = fixture();
+  const g = (key, id, who) => f.groups.push({ key, name: `CAD-SEC-U-DG-${key}`, id, direct: set(who), nested: set() });
+  g("INT-UAE", "g1", "d"); g("EXT-UEA", "g2", "e"); g("INT-UK", "g3", "d");
+  g("INT-POL-Warszawa", "g4", "d"); g("EXT-POL-Warszawa", "g5", "e"); g("INT-POL-SKARB", "g6", "d"); g("EXT-POL-SKARB", "g7", "e");
+  g("SA-GLO", "g8", "d"); g("WID", "g9", "d");
+  f.regions = DeployDash.DEFAULT_REGIONS;
+  const m = DeployDash.build(f);
+  const reg = Object.fromEntries(m.groups.map((r) => [r.key, r.region]));
+  assert.equal(reg["INT-UAE"], "BAMSCA"); assert.equal(reg["EXT-UEA"], "BAMSCA"); assert.equal(reg["INT-UK"], "Euro");
+  assert.equal(reg["INT-POL-Warszawa"], "Euro"); assert.equal(reg["EXT-POL-SKARB"], "Euro");
+  assert.equal(reg["SA-GLO"], "No region"); assert.equal(reg["WID"], "No region");
+  const places = [...m.gaps.missing, ...m.gaps.via].map((x) => x.place);
+  for (const p of ["AE", "PL · Warszawa", "PL · Skarbimierz", "UAE", "POL · Warszawa", "PL · SKARB"]) assert.ok(!places.includes(p), `${p} neither missing nor a place of its own`);
+  assert.equal(DeployDash.parseRegionCsv("region,code\nBAMSCA,UAE").rows[0].code, "AE");
+});
