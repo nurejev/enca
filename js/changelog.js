@@ -19,6 +19,15 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 336, date: "2026-11-26", release: "2.0.14",
+    title: "ENCA 2.0.14 — 🕵 Who is … to CA: the IP addresses a user or a service principal signs in from",
+    items: [
+      { kind: "improved", tool: "Who is … to CA", text: "Production is build 336 (v2.0.14). 🌐 A new card after Applications lists every IP address she signed in from in the window: where it is (city, country, AS when the sign-in carries it), which named locations it falls in — green when marked trusted, plain for an IP location that is not, grey for a country list — her sign-ins and how many Conditional Access stopped, the applications, devices and last sign-in. Callouts name a stopped address that is in no IP named location, sign-ins from more than one country, and traffic concentrated on one or two addresses — the pattern of an account that runs from a server. Chips: all, outside IP named locations, stopped, first seen in the last 3 days; Group by /24 · /64; CSV; the Markdown brief carries the table. No extra sign-in read and no new permission." },
+      { kind: "improved", tool: "Who is … to CA", text: "🤖 A fourth subject, A service principal: pick an enterprise app, app registration or managed identity by name, appId or object ID and see the workload-identity policies that reach it, the result on its own sign-ins, the resources it reaches and the same 🌐 IP addresses card. A managed identity, a multi-tenant app or a Microsoft app is said plainly to be out of reach of Conditional Access. For an app registered here, the secrets and certificates on the registration and the next expiry. The sign-in source segment is the shared one: the Entra log, or Defender hunting summarised per address and day." },
+      { kind: "fixed", tool: "Who is … to CA", text: "🛡 Read identity risk stayed on reading… and the risk card never appeared: the button ran a check that belongs to the main read and failed on it. The risk read now finishes and the card shows." },
+    ],
+  },
+  {
     build: 335, date: "2026-11-19", release: "2.0.13",
     title: "ENCA 2.0.13 — 🔐 ENCA access: the PIM groups for the people who use the Conditional Access workspace",
     items: [
