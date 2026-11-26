@@ -26,25 +26,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://limo.goatcounter.com; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://management.azure.com https://limo.goatcounter.com https://enca.limon-it.nl https://api.github.com https://raw.githubusercontent.com https://cloudflare-dns.com; frame-src https://login.microsoftonline.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- FIRST: stops the MSAL sign-in popup (and the silent-renewal iframe)
      from loading the whole app and eating its own auth response. -->
-<script src="js/popup-guard.js?v=33607"></script>
+<script src="js/popup-guard.js?v=33608"></script>
 <title>ENCA · Conditional Access Baseline Tools · Limon-IT</title>
-<link rel="icon" id="favicon" href="assets/favicon.svg?v=33607" type="image/svg+xml">
-<link rel="stylesheet" href="css/app.css?v=33607">
+<link rel="icon" id="favicon" href="assets/favicon.svg?v=33608" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=33608">
 <!-- Deliberately BLOCKING, before first paint: applies this browser's known
      self-host branding (palette, logo, favicon) so a branded instance never
      flashes the default look on load. No-op without a stored brand. -->
-<script src="js/selfhost-boot.js?v=33607"></script>
+<script src="js/selfhost-boot.js?v=33608"></script>
 <!-- Anonymous, aggregate usage counting (GoatCounter): page views and
      tool-open counts only. No cookies, no identifiers, no tenant or policy
      data. count.js is self-hosted so the CSP allows only the count endpoint.
      Blocking it breaks nothing. Disclosed in README.md § privacy. -->
-<script src="js/counter.js?v=33607"></script>
-<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=33607"></script>
-<link rel="stylesheet" href="css/workspace.css?v=33607">
-<link rel="stylesheet" href="css/workspaces.css?v=33607">
-<link rel="stylesheet" href="css/tool-layout.css?v=33607">
-<link rel="stylesheet" href="css/list-detail.css?v=33607">
-<link rel="stylesheet" href="css/flat-icons.css?v=33607">
+<script src="js/counter.js?v=33608"></script>
+<script data-goatcounter="https://limo.goatcounter.com/count" async src="vendor/count.js?v=33608"></script>
+<link rel="stylesheet" href="css/workspace.css?v=33608">
+<link rel="stylesheet" href="css/workspaces.css?v=33608">
+<link rel="stylesheet" href="css/tool-layout.css?v=33608">
+<link rel="stylesheet" href="css/list-detail.css?v=33608">
+<link rel="stylesheet" href="css/flat-icons.css?v=33608">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div class="hwrap">
     <button class="btn workspace-menu" id="workspaceMenu" aria-label="Open navigation" aria-controls="sideNav" aria-expanded="false" hidden>☰</button>
     <div class="logo" id="logoHome" title="Back to tools">
-      <img id="brandLogo" src="assets/logo-mark-light.svg?v=33607" width="34" height="34" alt="ENCA">
+      <img id="brandLogo" src="assets/logo-mark-light.svg?v=33608" width="34" height="34" alt="ENCA">
       <b id="brandOrg">Limon-<span>IT</span></b>
     </div>
     <span class="app-tag" id="brandTag">ENCA</span>
@@ -105,7 +105,7 @@
   <!-- ============ LOGIN ============ -->
   <section id="screen-login" class="screen active">
     <div class="login-card">
-      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=33607" width="76" height="76" alt="ENCA">
+      <img id="brandLogoLogin" src="assets/logo-mark-light.svg?v=33608" width="76" height="76" alt="ENCA">
       <h1 id="brandLoginTitle">ENCA — Conditional Access Baseline Tools</h1>
       <p id="brandLoginBlurb">Sign in with your Microsoft Entra account to browse, document, analyze and back up your Conditional Access baseline — including the newest policy settings.</p>
       <button class="btn primary ms-btn" id="signInBtn">
@@ -271,7 +271,7 @@
       </div>
       <div class="tool tool-tile" id="toolWhoIs">
         <div class="tool-ic">🕵</div><h3>Who is … to CA <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span></h3>
-        <p>Pick the subject; the picture is the same one. <b>🕵 A user</b> — which deployment group she is in and how she got there (direct, or nested via which parent), every policy that reaches her or misses her and why, her sign-ins, the applications she signs in to and which exclusion covers each, the IP addresses she signs in from and which named locations they fall in, her risk, what goes live next. <b>🌊 A group</b> — the same for a whole wave: who is in it and how, which policies target it, how many members an exclusion takes back out, and every member's forecast. <b>⚖ Compare users</b> — two or more side by side, where Conditional Access treats them differently and which group or role membership is behind it. One subject resolver and one policy ladder under all three.</p>
+        <p>Pick the subject; the picture is the same one. <b>🕵 A user</b> — which deployment group she is in and how she got there (direct, or nested via which parent), every policy that reaches her or misses her and why, her sign-ins, the applications she signs in to and which exclusion covers each, the IP addresses she signs in from and which named locations they fall in, her risk, what goes live next. <b>🌊 A group</b> — the same for a whole wave: who is in it and how, which policies target it, how many members an exclusion takes back out, and every member's forecast. <b>⚖ Compare users</b> — two or more side by side, where Conditional Access treats them differently and which group or role membership is behind it. One subject resolver and one policy ladder under all three. <b>🤖 A service principal</b> — the workload-identity policies that reach an app or managed identity, its sign-ins and the IP addresses it signs in from.</p>
       </div>
       <div class="tool tool-tile" id="toolDeployDash">
         <div class="tool-ic">📊</div><h3>Deployment dashboard <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span></h3>
@@ -1128,6 +1128,31 @@
       </div>
     </div>
     <div class="tool-body" id="wvBody"></div>
+  </section>
+
+  <!-- ============ 🤖 Who is … to CA — the service principal subject (T36 1.7.0, build 33608) — js/whoissp.js judges and renders, app.js (wp*) reads ============ -->
+  <section id="screen-whoissp" class="screen tool">
+    <div class="list-card readme" id="wpHead"></div>
+    <div class="toolbar" id="wpToolbar">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="wpTerm" list="wpTermList" placeholder="Service principal or managed identity — name, appId or object ID, Enter to read" autocomplete="off" spellcheck="false">
+        <datalist id="wpTermList"></datalist>
+      </div>
+      <label class="wi-f tb-win"><span>Sign-ins</span>
+        <select id="wpDays" style="width:auto">
+          <option value="1">Last 24 hours</option>
+          <option value="7" selected>Last 7 days</option>
+          <option value="30">Last 30 days</option>
+        </select></label>
+      <button class="btn primary" id="wpRun">🔎 Read service principal</button>
+      <div class="tb-actions">
+        <button class="btn" id="wpRescan" style="display:none" title="Re-read the principal and its sign-ins">⟳ Rescan</button>
+        <button class="btn" id="wpMd" style="display:none">Export MD</button>
+        <button class="btn lemon" id="wpCsv" style="display:none" title="Every IP address it signed in from">⤓ Export CSV</button>
+      </div>
+    </div>
+    <div class="tool-body" id="wpBody"></div>
   </section>
 
   <!-- ============ 🌐 GLOBAL SECURE ACCESS (T56, build 32516) — js/gsa.js judges and renders, app.js reads and writes ============ -->
@@ -2712,6 +2737,16 @@
         <li><b>Buttons out</b> — ⚖ Compare (adds her, ready for a colleague), 🧪 What-If (user filled in), 🔗 Analyzer (everything outside Conditional Access that points at her), 🌊 the wave she is in, Markdown brief for the ticket with every card, CSV of the policy table (the applications card has its own).</li>
       </ul>
       <p class="help-x">Read-only. Memberships and policies come from what ENCA already holds — the same include/exclude resolution as ⚖ Compare users. <b>Sign-in source:</b> the segment in the toolbar is shared with 🚦 Sign-in failures, 🎚 Report-only impact and 🌊 the wave — Entra sign-in log (interactive, AuditLog.Read.All), Entra + non-interactive preview, Defender hunting, or Hunting + non-interactive (ThreatHunting.Read.All, Entra ID P2) — see 🚦 for the trade-offs. On the Entra source only this user's sign-ins are read (server-filtered, with a 5,000-event safety cap), or the window another tool already read is reused when it was not capped. Registered MFA methods and identity risk are optional extra reads, offered as buttons and never required. Licence comes from the same verdict 🎫 Licence gap uses.</p>
+
+      <h5>🤖 A service principal <span class="tag new">BETA</span> <span class="tag upd">UPDATED</span></h5>
+      <p>The fourth subject (build 33608): one <b>service principal</b> or <b>managed identity</b>, found by name, appId or object ID. Conditional Access for workload identities is a scope of its own (<code>conditions.clientApplications</code>), and its rules are the ones 🤖 Workload identities uses: only a <b>single-tenant</b> service principal registered in this tenant can be targeted, named directly or through all service principals in the tenant; a managed identity, a multi-tenant app or a Microsoft app cannot, and the screen says so instead of listing policies that pass it by. A policy aimed at users never applies to a service principal sign-in, so those are counted in one line.</p>
+      <ul>
+        <li><b>The principal</b> — its kind, enabled or not, and for an app registered here the secrets and certificates on the registration with the next expiry (amber within 30 days or past). Four tiles: policies reaching it, sign-ins and resources, IP addresses and how many sit in a trusted location, sign-ins stopped by Conditional Access.</li>
+        <li><b>Workload identity policies</b> — every policy that names it or covers all service principals: state, the grant, how it reaches (named directly, all in the tenant, excluded, an attribute filter decides — not evaluated here, or cannot target this kind) and, on the Entra source, the result on its own sign-ins (applied, not applied, blocked, report-only would block). The All chip lists the other workload-identity policies too.</li>
+        <li><b>🌐 IP addresses it signs in from</b> — the same card as the user subject, from its own sign-ins: where, the named locations each address falls in, stopped counts, the resources, the server-account pattern. A callout says when no policy reaches a targetable principal while some of its addresses are outside every IP named location.</li>
+        <li><b>Resources it signs in to</b> — sign-ins, stopped, failed and last per resource.</li>
+      </ul>
+      <p class="help-x">Read-only. The <b>sign-in source</b> segment is the shared one: the Entra choices read this principal's service principal and managed identity sign-ins from the Entra log (AuditLog.Read.All, up to 5,000, with the Conditional Access result per policy); the hunting choices read <code>EntraIdSpnSignInEvents</code> (falling back to <code>AADSpnSignInEventsBeta</code>) for it, summarised per address, place, resource and day — that table carries no Conditional Access columns, so a block is error 53003 without a policy name. Export MD carries every card; Export CSV is the address list.</p>
 
       <h5>🌊 Who is the wave to CA <span class="tag new">BETA</span> <span class="help-fold">folded into this tool — build 25347</span></h5>
       <p>A rollout goes wave by wave — <code>CAD-SEC-U-DG-GLO</code>, then <code>-INT</code>, then <code>-ADM</code>. The question before the next policy is switched from report-only to On is <b>can this wave take it</b>, and until now the answer was per policy (🎚 Report-only impact) or per user (🕵 Who is Anna to CA), never per wave. Pick a deployment group — the active baseline's deploy and persona groups are offered with their member counts, or type any group — and get:</p>
@@ -4388,128 +4423,129 @@
 <script src="vendor/html-to-image.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<script src="js/branding.js?v=33607"></script>
-<script src="js/selfhost.js?v=33607"></script>
-<script src="js/version.js?v=33607"></script>
-<script src="js/verdict.js?v=33607"></script>
-<script src="js/fork.js?v=33607"></script>
-<script src="js/promote.js?v=33607"></script>
-<script src="js/authConfig.js?v=33607"></script>
-<script src="js/connection.js?v=33607"></script>
-<script src="js/labels.js?v=33607"></script>
-<script src="js/capabilities.js?v=33607"></script>
-<script src="js/graph.js?v=33607"></script>
-<script src="js/model.js?v=33607"></script>
-<script src="js/render.js?v=33607"></script>
-<script src="js/analyze.js?v=33607"></script>
-<script src="js/whatif.js?v=33607"></script>
-<script src="js/mslearn.js?v=33607"></script>
-<script src="js/learntriage.js?v=33607"></script>
-<script src="js/learnfeed.js?v=33607"></script>
-<script src="js/gapcheck.js?v=33607"></script>
-<script src="js/cisdata.js?v=33607"></script>
-<script src="js/cischeck.js?v=33607"></script>
-<script src="js/exclusions.js?v=33607"></script>
-<script src="js/cascope.js?v=33607"></script>
-<script src="js/coverage.js?v=33607"></script>
-<script src="js/runmeta.js?v=33607"></script>
-<script src="js/overview.js?v=33607"></script>
-<script src="js/validator.js?v=33607"></script>
-<script src="js/whatifeval.js?v=33607"></script>
-<script src="js/builder.js?v=33607"></script>
-<script src="js/onboard.js?v=33607"></script>
-<script src="js/compare.js?v=33607"></script>
-<script src="js/whois.js?v=33607"></script>
-<script src="js/wave.js?v=33607"></script>
-<script src="js/sessionctl.js?v=33607"></script>
-<script src="js/spgap.js?v=33607"></script>
-<script src="js/groupuse.js?v=33607"></script>
-<script src="js/iso3166.js?v=33607"></script>
-<script src="js/causes.js?v=33607"></script>
-<script src="js/locations.js?v=33607"></script>
-<script src="js/locsignin.js?v=33607"></script>
-<script src="js/workloadid.js?v=33607"></script>
-<script src="js/authcontexts.js?v=33607"></script>
-<script src="js/authstrengths.js?v=33607"></script>
-<script src="js/recycle.js?v=33607"></script>
-<script src="js/rmau.js?v=33607"></script>
-<script src="js/auinv.js?v=33607"></script>
-<script src="js/camap.js?v=33607"></script>
-<script src="js/rmaudoc.js?v=33607"></script>
-<script src="js/termsofuse.js?v=33607"></script>
-<script src="js/audit.js?v=33607"></script>
-<script src="js/drift.js?v=33607"></script>
-<script src="js/guide.js?v=33607"></script>
-<script src="js/userimpact.js?v=33607"></script>
-<script src="js/smsvoice.js?v=33607"></script>
-<script src="js/memberof.js?v=33607"></script>
-<script src="js/devcheck.js?v=33607"></script>
-<script src="js/idscore.js?v=33607"></script>
-<script src="js/xtenant.js?v=33607"></script>
-<script src="js/passkeys.js?v=33607"></script>
-<script src="js/tokencov.js?v=33607"></script>
-<script src="js/naming.js?v=33607"></script>
-<script src="js/licgap.js?v=33607"></script>
-<script src="js/teamsdev.js?v=33607"></script>
-<script src="js/signinstore.js?v=33607"></script>
-<script src="js/signins.js?v=33607"></script>
-<script src="js/reportimpact.js?v=33607"></script>
-<script src="js/changelog.js?v=33607"></script>
-<script src="js/baselineData.js?v=33607"></script>
-<script src="js/baselineJoeyData.js?v=33607"></script>
-<script src="js/baselineSmbData.js?v=33607"></script>
-<script src="js/baselineLive.js?v=33607"></script>
-<script src="js/pimBaselineData.js?v=33607"></script>
-<script src="js/pimbaseline.js?v=33607"></script>
-<script src="js/pimplan.js?v=33607"></script>
-<script src="js/encaaccess.js?v=33607"></script>
-<script src="js/pimrmau.js?v=33607"></script>
-<script src="js/intunerbac.js?v=33607"></script>
-<script src="js/pimroles.js?v=33607"></script>
-<script src="js/pimreport.js?v=33607"></script>
-<script src="js/pimdoc.js?v=33607"></script>
-<script src="js/pimmodules.js?v=33607"></script>
-<script src="js/pimdeploy.js?v=33607"></script>
-<script src="js/pimscript.js?v=33607"></script>
-<script src="js/pimdesigner.js?v=33607"></script>
-<script src="js/pimcatalog.js?v=33607"></script>
-<script src="js/pimlens.js?v=33607"></script>
-<script src="js/baseline.js?v=33607"></script>
-<script src="js/eadminsData.js?v=33607"></script>
-<script src="js/joeyPlusData.js?v=33607"></script>
-<script src="js/secdefaults.js?v=33607"></script>
-<script src="js/baselineCleanup.js?v=33607"></script>
-<script src="js/groupTemplates.js?v=33607"></script>
-<script src="js/assign.js?v=33607"></script>
-<script src="js/cagroups.js?v=33607"></script>
-<script src="js/groupmerge.js?v=33607"></script>
-<script src="js/dgfill.js?v=33607"></script>
-<script src="js/dgadd.js?v=33607"></script>
-<script src="js/deploydash.js?v=33607"></script>
-<script src="js/trv2.js?v=33607"></script>
-<script src="js/gsa.js?v=33607"></script>
-<script src="js/egress.js?v=33607"></script>
-<script src="js/devicecleanup.js?v=33607"></script>
-<script src="js/appaccess.js?v=33607"></script>
-<script src="js/m365harden.js?v=33607"></script>
-<script src="js/groupsview.js?v=33607"></script>
-<script src="js/runledger.js?v=33607"></script>
-<script src="js/bgvault.js?v=33607"></script>
-<script src="js/protect.js?v=33607"></script>
-<script src="js/policy-compare.js?v=33607"></script>
-<script src="js/import.js?v=33607"></script>
-<script src="js/dgtrial.js?v=33607"></script>
-<script src="js/export.js?v=33607"></script>
-<script src="js/demo.js?v=33607"></script>
-<script src="js/list-detail.js?v=33607"></script>
-<script src="js/flat-icons.js?v=33607"></script>
-<script src="js/workspace.js?v=33607"></script>
-<script src="js/analysis-jobs.js?v=33607"></script>
-<script src="js/search-suggest.js?v=33607"></script>
-<script src="js/app.js?v=33607"></script>
-<script src="js/col-resize.js?v=33607"></script>
-<script src="js/accessibility.js?v=33607"></script>
-<script src="js/workspaces.js?v=33607"></script>
-<script src="js/tool-layout.js?v=33607"></script>
+<script src="js/branding.js?v=33608"></script>
+<script src="js/selfhost.js?v=33608"></script>
+<script src="js/version.js?v=33608"></script>
+<script src="js/verdict.js?v=33608"></script>
+<script src="js/fork.js?v=33608"></script>
+<script src="js/promote.js?v=33608"></script>
+<script src="js/authConfig.js?v=33608"></script>
+<script src="js/connection.js?v=33608"></script>
+<script src="js/labels.js?v=33608"></script>
+<script src="js/capabilities.js?v=33608"></script>
+<script src="js/graph.js?v=33608"></script>
+<script src="js/model.js?v=33608"></script>
+<script src="js/render.js?v=33608"></script>
+<script src="js/analyze.js?v=33608"></script>
+<script src="js/whatif.js?v=33608"></script>
+<script src="js/mslearn.js?v=33608"></script>
+<script src="js/learntriage.js?v=33608"></script>
+<script src="js/learnfeed.js?v=33608"></script>
+<script src="js/gapcheck.js?v=33608"></script>
+<script src="js/cisdata.js?v=33608"></script>
+<script src="js/cischeck.js?v=33608"></script>
+<script src="js/exclusions.js?v=33608"></script>
+<script src="js/cascope.js?v=33608"></script>
+<script src="js/coverage.js?v=33608"></script>
+<script src="js/runmeta.js?v=33608"></script>
+<script src="js/overview.js?v=33608"></script>
+<script src="js/validator.js?v=33608"></script>
+<script src="js/whatifeval.js?v=33608"></script>
+<script src="js/builder.js?v=33608"></script>
+<script src="js/onboard.js?v=33608"></script>
+<script src="js/compare.js?v=33608"></script>
+<script src="js/whois.js?v=33608"></script>
+<script src="js/wave.js?v=33608"></script>
+<script src="js/sessionctl.js?v=33608"></script>
+<script src="js/spgap.js?v=33608"></script>
+<script src="js/groupuse.js?v=33608"></script>
+<script src="js/iso3166.js?v=33608"></script>
+<script src="js/causes.js?v=33608"></script>
+<script src="js/locations.js?v=33608"></script>
+<script src="js/locsignin.js?v=33608"></script>
+<script src="js/workloadid.js?v=33608"></script>
+<script src="js/whoissp.js?v=33608"></script>
+<script src="js/authcontexts.js?v=33608"></script>
+<script src="js/authstrengths.js?v=33608"></script>
+<script src="js/recycle.js?v=33608"></script>
+<script src="js/rmau.js?v=33608"></script>
+<script src="js/auinv.js?v=33608"></script>
+<script src="js/camap.js?v=33608"></script>
+<script src="js/rmaudoc.js?v=33608"></script>
+<script src="js/termsofuse.js?v=33608"></script>
+<script src="js/audit.js?v=33608"></script>
+<script src="js/drift.js?v=33608"></script>
+<script src="js/guide.js?v=33608"></script>
+<script src="js/userimpact.js?v=33608"></script>
+<script src="js/smsvoice.js?v=33608"></script>
+<script src="js/memberof.js?v=33608"></script>
+<script src="js/devcheck.js?v=33608"></script>
+<script src="js/idscore.js?v=33608"></script>
+<script src="js/xtenant.js?v=33608"></script>
+<script src="js/passkeys.js?v=33608"></script>
+<script src="js/tokencov.js?v=33608"></script>
+<script src="js/naming.js?v=33608"></script>
+<script src="js/licgap.js?v=33608"></script>
+<script src="js/teamsdev.js?v=33608"></script>
+<script src="js/signinstore.js?v=33608"></script>
+<script src="js/signins.js?v=33608"></script>
+<script src="js/reportimpact.js?v=33608"></script>
+<script src="js/changelog.js?v=33608"></script>
+<script src="js/baselineData.js?v=33608"></script>
+<script src="js/baselineJoeyData.js?v=33608"></script>
+<script src="js/baselineSmbData.js?v=33608"></script>
+<script src="js/baselineLive.js?v=33608"></script>
+<script src="js/pimBaselineData.js?v=33608"></script>
+<script src="js/pimbaseline.js?v=33608"></script>
+<script src="js/pimplan.js?v=33608"></script>
+<script src="js/encaaccess.js?v=33608"></script>
+<script src="js/pimrmau.js?v=33608"></script>
+<script src="js/intunerbac.js?v=33608"></script>
+<script src="js/pimroles.js?v=33608"></script>
+<script src="js/pimreport.js?v=33608"></script>
+<script src="js/pimdoc.js?v=33608"></script>
+<script src="js/pimmodules.js?v=33608"></script>
+<script src="js/pimdeploy.js?v=33608"></script>
+<script src="js/pimscript.js?v=33608"></script>
+<script src="js/pimdesigner.js?v=33608"></script>
+<script src="js/pimcatalog.js?v=33608"></script>
+<script src="js/pimlens.js?v=33608"></script>
+<script src="js/baseline.js?v=33608"></script>
+<script src="js/eadminsData.js?v=33608"></script>
+<script src="js/joeyPlusData.js?v=33608"></script>
+<script src="js/secdefaults.js?v=33608"></script>
+<script src="js/baselineCleanup.js?v=33608"></script>
+<script src="js/groupTemplates.js?v=33608"></script>
+<script src="js/assign.js?v=33608"></script>
+<script src="js/cagroups.js?v=33608"></script>
+<script src="js/groupmerge.js?v=33608"></script>
+<script src="js/dgfill.js?v=33608"></script>
+<script src="js/dgadd.js?v=33608"></script>
+<script src="js/deploydash.js?v=33608"></script>
+<script src="js/trv2.js?v=33608"></script>
+<script src="js/gsa.js?v=33608"></script>
+<script src="js/egress.js?v=33608"></script>
+<script src="js/devicecleanup.js?v=33608"></script>
+<script src="js/appaccess.js?v=33608"></script>
+<script src="js/m365harden.js?v=33608"></script>
+<script src="js/groupsview.js?v=33608"></script>
+<script src="js/runledger.js?v=33608"></script>
+<script src="js/bgvault.js?v=33608"></script>
+<script src="js/protect.js?v=33608"></script>
+<script src="js/policy-compare.js?v=33608"></script>
+<script src="js/import.js?v=33608"></script>
+<script src="js/dgtrial.js?v=33608"></script>
+<script src="js/export.js?v=33608"></script>
+<script src="js/demo.js?v=33608"></script>
+<script src="js/list-detail.js?v=33608"></script>
+<script src="js/flat-icons.js?v=33608"></script>
+<script src="js/workspace.js?v=33608"></script>
+<script src="js/analysis-jobs.js?v=33608"></script>
+<script src="js/search-suggest.js?v=33608"></script>
+<script src="js/app.js?v=33608"></script>
+<script src="js/col-resize.js?v=33608"></script>
+<script src="js/accessibility.js?v=33608"></script>
+<script src="js/workspaces.js?v=33608"></script>
+<script src="js/tool-layout.js?v=33608"></script>
 </body>
 </html>

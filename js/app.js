@@ -451,6 +451,7 @@
         { key: "user",    icon: "🕵", name: "A user",         toolbar: "woToolbar", open: () => openWhoIs() },
         { key: "group",   icon: "🌊", name: "A group",        toolbar: "wvToolbar", open: () => openWave() },
         { key: "compare", icon: "⚖", name: "Compare users",  toolbar: "cuToolbar", open: () => openCompare() },
+        { key: "sp",      icon: "🤖", name: "A service principal", toolbar: "wpToolbar", open: () => openWhoIsSp() },
       ],
     },
     whatif: {
@@ -17581,18 +17582,19 @@ This is a directory write. Nothing else changes.`)) return;
   document.addEventListener("click", (e) => {
     const b = e.target.closest("[data-logsrc]"); if (!b) return;
     const v = b.dataset.logsrc; if (v === logSource) return;
-    if (siBusy || riBusy || woBusy || wvBusy || scBusy) { toast("Stop or finish the current sign-in read before changing its source"); return; }
+    if (siBusy || riBusy || woBusy || wvBusy || scBusy || wpBusy) { toast("Stop or finish the current sign-in read before changing its source"); return; }
     logSource = v;
     try { localStorage.setItem(LOG_SRC_KEY(), v); } catch {}
     document.querySelectorAll(".logsrc-seg").forEach((seg) => [...seg.children].forEach((x) => x.classList.toggle("active", x.dataset.logsrc === v)));
     logCache = null; roCache = null;
-    siRes = null; riRes = null; woRes = null; wvRes = null; scRes = null;
+    siRes = null; riRes = null; woRes = null; wvRes = null; scRes = null; wpRes = null;
     toast(`Sign-ins now read from <span>${esc(logSourceLabel())}</span>`);
     // the tool that is open re-reads with the new source; the others re-read when opened
     if (typeof siRes !== "undefined" && $("screen-signins").classList.contains("active")) runSignins(true);
     else if (typeof riRes !== "undefined" && $("screen-impact").classList.contains("active")) runImpact(true);
     else if (typeof woRes !== "undefined" && $("screen-whois").classList.contains("active")) runWhoIs(true);
     else if (typeof wvRes !== "undefined" && $("screen-wave").classList.contains("active")) runWave(true);
+    else if (typeof wpRes !== "undefined" && $("screen-whoissp").classList.contains("active") && $("wpTerm").value.trim()) runWhoIsSp();
   });
 
   // the demo honours the source too: the hunting-with-non-interactive choice
@@ -28450,6 +28452,153 @@ This is a directory write. Nothing else changes.`)) return;
     const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) showDetail(pl.dataset.polid);
   });
   $("wlMd").addEventListener("click", () => { if (wlRes && wlRes.model) showReport("🤖 Workload identities", `ENCA-workload-identities-${new Date().toISOString().slice(0, 10)}`, WorkloadId.toMd(wlRes.model, tenantName)); });
+
+  // ---------- 🤖 Who is … to CA — the SERVICE PRINCIPAL subject (T36 1.7.0, beta 33608) ----------
+  // The fourth subject: one service principal or managed identity — the
+  // workload-identity policies that reach it (the scope rules are 🤖 Workload
+  // identities' own, js/workloadid.js), what its sign-ins did, the resources
+  // it reaches and WHERE it signs in from (the 🌐 card the user subject shows).
+  // Source: the shared sign-in source segment — the Entra choices read the
+  // service principal / managed identity sign-ins of THIS principal from the
+  // beta log; the hunting choices read EntraIdSpnSignInEvents for it,
+  // summarised per address, place, resource and day. Read-only.
+  let wpRes = null, wpBusy = false, wpDays = 7, wpPfilter = "reach", wpIfilter = "all", wpIgroup = false, wpSugTimer = null, wpSeedList = "";
+  const wpProg = makeProgress("wp"); wpProg.by = "🤖 Who is … to CA"; wpProg.stoppable = true;
+  const wpHunting = () => logSource === "hunt" || logSource === "huntall";
+  const wpSrc = () => ({ label: wpHunting() ? "Defender hunting (service principal sign-ins)" : "Entra sign-in log (service principal and managed identity sign-ins)", key: wpHunting() ? "hunt" : "entra" });
+  const wpGuid = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s || "").trim());
+  const WP_SEL = "id,appId,displayName,servicePrincipalType,appOwnerOrganizationId,accountEnabled";
+  function openWhoIsSp() {
+    crumb("🕵 Who is … to CA");
+    show("screen-whoissp");
+    mountToolTabs("whois", "sp");
+    mountLogSourceSeg("wpToolbar", "#wpRun");
+    $("wpHead").innerHTML = `${toolHead("toolWhoIs")}<details class="tool-about"><summary>About this subject · scope and permissions</summary>
+      <p style="margin-bottom:6px">One <b>service principal</b> or <b>managed identity</b>: which workload-identity policies reach it, what its sign-ins did, the resources it reaches and the <b>IP addresses</b> it signs in from, matched to your named locations.</p>
+      <p class="mini muted" style="margin:0">The principal and its registration come from the directory (Directory.Read.All, already granted). Its sign-ins: the Entra sign-in log (AuditLog.Read.All, service principal and managed identity sign-ins of this principal only) or, with the source set to hunting, Defender hunting (ThreatHunting.Read.All, EntraIdSpnSignInEvents). Read-only.</p></details>`;
+    if (isDemo) $("wpTermList").innerHTML = Object.values((DEMO_DATA.workload || {}).servicePrincipals || {}).map((s) => `<option value="${esc(s.displayName)}" label="${esc(s.servicePrincipalType || "")}"></option>`).join("");
+    if (wpBusy) { $("wpBody").innerHTML = wpProg.panel("Reading the service principal…"); return; }
+    if (wpRes) { renderWhoIsSp(); return; }
+    $("wpBody").innerHTML = '<div class="run-prompt"><p class="mini muted">Type an enterprise app, app registration or managed identity — by name, appId or object ID — and press <b>Read service principal</b>. Nothing is written.</p></div>';
+  }
+  // A name, an appId or an object id → the service principal, plus (for one
+  // registered here) the registration's audience and its credentials.
+  async function wpResolve(term) {
+    const t = term.trim();
+    if (isDemo) {
+      const all = Object.values((DEMO_DATA.workload || {}).servicePrincipals || {});
+      const sp = all.find((s) => s.id === t || s.appId === t) || all.find((s) => (s.displayName || "").toLowerCase() === t.toLowerCase()) || all.find((s) => (s.displayName || "").toLowerCase().startsWith(t.toLowerCase()));
+      if (!sp) throw new Error(`No service principal matches “${t}” in the demo tenant`);
+      return { ...sp, credentials: sp.servicePrincipalType === "ManagedIdentity" ? null : { count: 1, secrets: 1, certs: 0, nextExpiry: "2027-02-14T00:00:00Z" } };
+    }
+    let sp = null;
+    if (wpGuid(t)) {
+      try { sp = await Graph.gget(`/servicePrincipals/${t}?$select=${WP_SEL}`); } catch { /* not an object id */ }
+      if (!sp) { try { sp = await Graph.gget(`/servicePrincipals(appId='${t}')?$select=${WP_SEL}`); } catch { /* not an appId either */ } }
+    } else {
+      const f = t.replace(/'/g, "''");
+      const r = await Graph.gget(`/servicePrincipals?$filter=startswith(displayName,'${f}')&$select=${WP_SEL}&$top=10`);
+      const list = (r && r.value) || [];
+      sp = list.find((s) => (s.displayName || "").toLowerCase() === t.toLowerCase()) || (list.length === 1 ? list[0] : null);
+      if (!sp && list.length > 1) { dlSet("wpTermList", list.map((s) => `<option value="${esc(s.displayName)}" label="${esc(s.appId)}"></option>`).join("")); throw new Error(`${list.length} service principals start with “${t}” — pick one from the list`); }
+    }
+    if (!sp) throw new Error(`No service principal matches “${t}” — try the appId or the object ID`);
+    sp.credentials = null;
+    if (sp.appOwnerOrganizationId === tenantId && !/managedidentity/i.test(sp.servicePrincipalType || "")) {
+      try {
+        const a = await Graph.gget(`/applications(appId='${sp.appId}')?$select=signInAudience,passwordCredentials,keyCredentials`);
+        sp.signInAudience = a && a.signInAudience;
+        const pw = (a && a.passwordCredentials) || [], kc = (a && a.keyCredentials) || [];
+        const ends = pw.concat(kc).map((c) => c.endDateTime).filter(Boolean).sort();
+        const live = ends.filter((d) => Date.parse(d) > Date.now());
+        sp.credentials = { count: pw.length + kc.length, secrets: pw.length, certs: kc.length, nextExpiry: live[0] || ends[ends.length - 1] || "" };
+      } catch (e) { console.warn("whois sp: registration not read", e.message); }
+    }
+    return sp;
+  }
+  async function wpSignIns(sp) {
+    if (isDemo) return ((DEMO_DATA.workload || {}).signIns || []).filter((r) => r.servicePrincipalId === sp.id || r.appId === sp.appId).map((r, i) => ({ id: r.id || `wp-${i}`, ...r }));
+    const since = new Date(Date.now() - wpDays * 86400000);
+    if (wpHunting()) {
+      await requireProduct("p2");
+      if (!await preConsent([...AUTH_CONFIG.scopes, ...HUNT_SCOPES])) throw new Error("ThreatHunting.Read.All was not granted — switch the sign-in source to the Entra sign-in log");
+      const body = (table) => ({ Query: WhoIsSp.huntQuery(table, sp.id, since.toISOString(), new Date().toISOString()), Timespan: `P${Math.max(1, wpDays)}D` });
+      wpProg.start(1, "rows", "query");
+      let j;
+      try { j = await Graph.gpost("/security/runHuntingQuery", body(wlHuntTable), [...AUTH_CONFIG.scopes, ...HUNT_SCOPES]); }
+      catch (e) {
+        if (wlHuntTable !== "EntraIdSpnSignInEvents" || !/(resolve|find)[^']*'EntraIdSpnSignInEvents'/i.test((e && e.message) || "")) throw e;
+        wlHuntTable = "AADSpnSignInEventsBeta";
+        j = await Graph.gpost("/security/runHuntingQuery", body(wlHuntTable), [...AUTH_CONFIG.scopes, ...HUNT_SCOPES]);
+      }
+      const rows = (j && j.results) || [];
+      wpProg.tick(rows.length, 1);
+      return Object.assign(WhoIsSp.fromHunting(rows), { capped: rows.length >= 20000, table: wlHuntTable });
+    }
+    if (!await preConsent([...AUTH_CONFIG.scopes, ...SI_READ])) throw new Error("AuditLog.Read.All was not granted");
+    const f = `createdDateTime ge ${since.toISOString()} and servicePrincipalId eq '${sp.id}' and signInEventTypes/any(t:t eq 'servicePrincipal' or t eq 'managedIdentity')`;
+    const recs = await wpProg.fetchAll(`/beta/auditLogs/signIns?$filter=${encodeURIComponent(f)}&$top=999`, 5000, "sign-ins");
+    return Object.assign(recs, { capped: !!wpProg.st.capped });
+  }
+  async function runWhoIsSp() {
+    if (wpBusy) return;
+    const term = $("wpTerm").value.trim();
+    if (!term) { toast("Type a service principal name, appId or object ID first"); $("wpTerm").focus(); return; }
+    const key = JSON.stringify([tenantId, isDemo, logSource, wpDays, term]);
+    wpBusy = true; wpRes = null; wpProg.begin();
+    ["wpRescan", "wpMd", "wpCsv"].forEach((id) => { $(id).style.display = "none"; });
+    $("wpBody").innerHTML = wpProg.panel(`Reading <b>${esc(term)}</b> — the principal, its registration, its sign-ins…`);
+    try {
+      const sp = await wpResolve(term);
+      wpProg.check();
+      $("wpBody").innerHTML = wpProg.panel(`Reading <b>${esc(sp.displayName)}</b>'s sign-ins…`, wpHunting() ? "One summarised hunting query for this principal." : "Service principal and managed identity sign-ins of this principal, from the Entra log.");
+      const records = await wpSignIns(sp);
+      wpProg.check();
+      const locations = await woLocations();
+      if (key !== JSON.stringify([tenantId, isDemo, logSource, wpDays, $("wpTerm").value.trim()])) throw new Error("Read discarded: principal, source, window or tenant changed");
+      const now = isDemo ? Math.max(0, ...records.map((r) => Date.parse(r.createdDateTime) || 0)) || undefined : undefined;
+      const input = { sp, records, policies: wlPolicies(), locations, tenantId: isDemo ? DEMO_DATA.workload.tenantId : tenantId, days: wpDays, now, capped: !!records.capped, source: wpSrc().key };
+      wpRes = { input, model: WhoIsSp.analyze(input) };
+      ["wpRescan", "wpMd", "wpCsv"].forEach((id) => { $(id).style.display = ""; });
+    } catch (e) {
+      console.error("Who is … to CA (service principal) failed:", e);
+      wpRes = null;
+      $("wpBody").innerHTML = `<p class="mini" style="padding:20px;color:var(--off)">${esc(e && e.stopped ? "Stopped — nothing is shown for a partial read." : (e.message || e))}</p>`;
+    } finally { wpBusy = false; wpProg.stop(); }
+    if (wpRes) renderWhoIsSp();
+  }
+  function renderWhoIsSp() {
+    if (!wpRes) return;
+    $("wpBody").innerHTML = WhoIsSp.render(wpRes.model, { rangeLabel: rangeLabel(wpDays), filter: wpPfilter, ipFilter: wpIfilter, ipGroup: wpIgroup, source: wpSrc() });
+    applyFolds("wpBody");
+  }
+  $("wpRun").addEventListener("click", () => runWhoIsSp());
+  $("wpRescan").addEventListener("click", () => runWhoIsSp());
+  $("wpTerm").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); runWhoIsSp(); } });
+  $("wpTerm").addEventListener("input", (e) => {
+    const v = e.target.value; clearTimeout(wpSugTimer);
+    if (dlPicked("wpTermList", v)) return;   // a pick from the list, not typing — leave the options alone
+    wpSugTimer = setTimeout(async () => {
+      const t = v.trim();
+      if (isDemo || wpGuid(t)) return;
+      if (t.length < 2) { if (wpSeedList) dlSet("wpTermList", wpSeedList); return; }
+      try {
+        const r = await Graph.gget(`/servicePrincipals?$filter=startswith(displayName,'${t.replace(/'/g, "''")}')&$select=displayName,appId,servicePrincipalType&$top=10`);
+        dlSet("wpTermList", ((r && r.value) || []).map((s) => `<option value="${esc(s.displayName)}" label="${esc(`${s.servicePrincipalType || ""} · ${s.appId}`)}"></option>`).join(""));
+      } catch (err) { console.warn("whois sp: suggest failed", err.message); }
+    }, 250);
+  });
+  $("wpDays").addEventListener("change", (e) => { if (wpBusy) { e.target.value = wpDays; toast("Stop the current read before changing the period"); return; } wpDays = +e.target.value; if (wpRes) runWhoIsSp(); });
+  $("wpBody").addEventListener("click", (e) => {
+    if (foldClick("wpBody", e)) return;
+    const pl = e.target.closest(".pol-link"); if (pl && pl.dataset.polid) { showDetail(pl.dataset.polid); return; }
+    const pf = e.target.closest("[data-wp-pfilter]"); if (pf) { wpPfilter = pf.dataset.wpPfilter; renderWhoIsSp(); return; }
+    const ifl = e.target.closest("[data-wo-ifilter]"); if (ifl) { wpIfilter = ifl.dataset.woIfilter; renderWhoIsSp(); return; }
+    if (e.target.closest("[data-wo-igroup]")) { wpIgroup = !wpIgroup; renderWhoIsSp(); return; }
+    if (e.target.closest("[data-wo-ipcsv]") && wpRes) { downloadText(`CA-WhoIs-sp-ips-${String(wpRes.model.sp.displayName || wpRes.model.sp.id).replace(/[^\w.-]+/g, "_")}`, "csv", "text/csv", WhoIs.ipsCsv(wpRes.model.ips)); return; }
+  });
+  $("wpMd").addEventListener("click", () => { if (wpRes) showReport(`🤖 Who is ${wpRes.model.sp.displayName} to CA`, `CA-WhoIs-sp-${String(wpRes.model.sp.displayName || "sp").replace(/[^\w.-]+/g, "_")}`, WhoIsSp.toMd(wpRes.model, { tenant: tenantName || "tenant", rangeLabel: rangeLabel(wpDays), source: wpSrc().label })); });
+  $("wpCsv").addEventListener("click", () => { if (wpRes) downloadText(`CA-WhoIs-sp-ips-${String(wpRes.model.sp.displayName || "sp").replace(/[^\w.-]+/g, "_")}`, "csv", "text/csv", WhoIs.ipsCsv(wpRes.model.ips)); });
 
   // ---------- 🎫 CAE & token protection (32404, T46, R21) ----------
   // Coverage per persona of the two newer session controls, over the policies

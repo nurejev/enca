@@ -459,23 +459,27 @@ const WhoIs = (() => {
     const out = new Map();
     let noIp = 0, withLog = 0, total = 0;
     (recs || []).forEach((r) => {
-      total++;
+      // a summarised hunting row stands for _n sign-ins, _stopped of them blocked
+      const w = +r._n || 1;
+      total += w;
       const ip = String(r.ipAddress || "").trim();
-      if (!ip) { noIp++; return; }
+      if (!ip) { noIp += w; return; }
       let a = out.get(ip);
       if (!a) out.set(ip, a = { ip, net: netOf(ip), cities: new Map(), countries: new Map(), asn: "", count: 0, stopped: 0, nonInteractive: 0, first: "", last: "", apps: new Map(), devices: new Set(), logLocs: new Map() });
-      a.count++;
-      if (failedIds && failedIds.has(r.id)) a.stopped++;
-      if (!interactiveOf(r)) a.nonInteractive++;
+      a.count += w;
+      if (failedIds && failedIds.has(r.id)) a.stopped += w; else if (r._stopped) a.stopped += +r._stopped;
+      if (!r.servicePrincipalId && !r.hunting && !interactiveOf(r)) a.nonInteractive += w;
       const L = r.location || {}, cc = String(L.countryOrRegion || "").toUpperCase();
-      if (L.city) a.cities.set(L.city, (a.cities.get(L.city) || 0) + 1);
-      if (cc) a.countries.set(cc, (a.countries.get(cc) || 0) + 1);
+      if (L.city) a.cities.set(L.city, (a.cities.get(L.city) || 0) + w);
+      if (cc) a.countries.set(cc, (a.countries.get(cc) || 0) + w);
       if (r.autonomousSystemNumber) a.asn = String(r.autonomousSystemNumber);
       const when = String(r.createdDateTime || "");
+      const firstWhen = String(r._first || r.createdDateTime || "");
       if (when > a.last) a.last = when;
-      if (when && (!a.first || when < a.first)) a.first = when;
-      const app = r.appDisplayName || r.resourceDisplayName || r.servicePrincipalName || "";
-      if (app) a.apps.set(app, (a.apps.get(app) || 0) + 1);
+      if (firstWhen && (!a.first || firstWhen < a.first)) a.first = firstWhen;
+      // a workload identity IS the app — what it reached is the resource
+      const app = (r.servicePrincipalId || r.hunting) ? (r.resourceDisplayName || "") : (r.appDisplayName || r.resourceDisplayName || "");
+      if (app) a.apps.set(app, (a.apps.get(app) || 0) + w);
       const dd = r.deviceDetail || {};
       if (dd.deviceId || dd.displayName || dd.operatingSystem) a.devices.add(dd.deviceId || dd.displayName || `${dd.operatingSystem || ""}|${dd.browser || ""}`);
       if (r.networkLocationDetails) withLog++;
@@ -582,7 +586,7 @@ const WhoIs = (() => {
       ${ip.rows.length ? `<p class="mini" style="margin:0 0 8px">${ip.withIp.toLocaleString()} sign-in${ip.withIp === 1 ? "" : "s"} from ${ip.rows.length} address${ip.rows.length === 1 ? "" : "es"}${src ? ` · source: <b>${esc(src.label)}</b>` : ""}${ip.noIp ? ` · ${ip.noIp.toLocaleString()} without an address` : ""} · from ${whose} own sign-ins, no extra read.</p>
       ${tiles}${callouts.join("")}
       <div class="chip-filter" style="margin:0 0 8px">${chips}<button class="fchip${opts.group ? " active" : ""}" data-wo-igroup title="One row per /24 (IPv4) or /64 (IPv6) network">Group by /24 · /64</button><button class="fchip" data-wo-ipcsv title="Every address, with where it is, its named locations, sign-ins and applications">⭳ CSV</button></div>
-      <div class="gu-tw"><table class="plist wo-tbl wo-iptbl"><thead><tr><th>IP address</th><th>Where</th><th>Named location</th><th class="num">Sign-ins</th><th>Apps · devices · last</th></tr></thead><tbody>
+      <div class="gu-tw"><table class="plist wo-tbl wo-iptbl"><thead><tr><th>IP address</th><th>Where</th><th>Named location</th><th class="num">Sign-ins</th><th>${esc(opts.appsLabel || "Apps · devices · last")}</th></tr></thead><tbody>
         ${shown.slice(0, 40).map(row).join("")}
       </tbody></table></div>${shown.length > 40 ? `<p class="mini muted" style="margin-top:6px">${shown.length - 40} more — in the CSV.</p>` : ""}
       <p class="mini muted" style="margin-top:8px"><b>Named location</b> = the tenant's named locations the address falls in: green when marked trusted, plain for an IP location that is not, grey for a country list. ${hunting ? "This source carries the address, city and country only, so every location is matched by its ranges and countries here, not by Entra's own answer — switch to the Entra sign-in log for that." : "Entra's own answer on the sign-in (networkLocationDetails) counts first; otherwise the address is matched against the ranges."} A country location looked up by Authenticator GPS cannot be matched from an address. <b>Outside IP named locations</b> = in no IP-range location; a country list says where an address is, not that it is yours. Where and AS are Microsoft's geolocation of the address.${ip.recentOn ? ` <b>New</b> = first seen in the last ${ip.recentDays} days of this window, which reaches no further back than the window.` : ""}${ip.locationsRead ? "" : " The named locations could not be read (Policy.Read.All), so no address is matched to one."}</p>`

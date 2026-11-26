@@ -182,6 +182,29 @@ const PROMOTE = {
 
   items: [
     {
+      n: 397,
+      ws: "ca",
+      requires: [396],
+      requiresWhy: "the 🌐 IP card, its CSV and Markdown come from 396 (WhoIs.ipsOf / ipsHtml / ipsCsv / ipsMd), which this build extends with weighted hunting rows.",
+      title: "🕵 Who is … to CA 1.7 — 🤖 a service principal or managed identity as the fourth subject: workload-identity policies, its sign-ins, resources and the IP addresses it signs in from",
+      tools: ["Who is … to CA"],
+      builds: [33608],
+      risk: "medium",
+      what: "js/whoissp.js (pure): analyze over the principal, its sign-ins, the policies (wlPolicies) and the named locations, on WorkloadId.kindOf / targets / inScope — per policy inc / filter / cannot / exc / na with the result per policy from appliedConditionalAccessPolicies; resources; WhoIs.ipsOf for the IP card; callouts (cannot target this kind, untargeted with addresses outside, stopped, attribute filter). huntQuery for one principal summarised per IP, country, city, resource and day; fromHunting into weighted records. index.html: screen-whoissp with wpToolbar, the fourth TAB_HOSTS tab A service principal, Help h5. app.js wp*: resolve by object id, appId or startswith(displayName) with a suggest box on dlPicked / dlSet, the registration's signInAudience and credentials for an app owned here, the sign-in read on the shared source segment, Export MD / CSV, the source switch re-reads the open subject. js/whois.js ipsOf: weighted rows (_n, _stopped, _first), resources as apps for workload records, appsLabel option.",
+      why: "Mihai, 26 Nov 2026: the IP option asked for a user or service account; asked whether service principals were in, he chose them; mockup approved. Medium: a read-only subject on a read-only tool; the Graph filter on servicePrincipalId and the single-principal hunting query are new reads.",
+      test: [
+        "Demo (?demo=1), 🕵 Who is … to CA → the strip has a fourth tab 🤖 A service principal; svc-backup-graph → Single-tenant app, CA900 Reaches it, named directly, blocked ×1, the stopped tile 1, the IP card with 192.0.2.80 in the US and no named location.",
+        "Demo: mi-func-invoices → Managed identity, policies reaching it —, the callout says Conditional Access cannot target a managed identity, CA900 and CA901 both read Cannot target this kind.",
+        "Demo: svc-payroll-export → 203.0.113.40 green HQ egress · trusted; Group by /24 · /64 and the All workload policies chip work; Export MD has the policies, IP and resources sections; Export CSV saves the addresses.",
+        "Real tenant, Entra sign-in log source: an app registration with a client secret → the registration line shows the secret count and the next expiry; its sign-ins load (the filter on servicePrincipalId is accepted) and each policy shows its result.",
+        "Real tenant: type part of a name shared by several apps → the read says how many match and the suggest list offers them; picking one does not reopen the list.",
+        "Real tenant, source set to Defender hunting: the same principal reads in one query, results column says not in the hunting source, a 53003 address shows its stopped count in the IP card.",
+        "Real tenant: a multi-tenant SaaS app (another owner tenant) reads as Multi-tenant app and cannot be targeted.",
+        "Switch the sign-in source while the subject is open with a principal typed: it re-reads with the new source.",
+        "node --test tools/*.test.cjs — all pass (tools/whoissp.test.cjs is new); node tools/check-plain-text.js clean.",
+      ],
+    },
+    {
       n: 396,
       ws: "ca",
       title: "🕵 Who is … to CA 1.6 — 🌐 the IP addresses she signs in from, matched to the named locations; plus the 🛡 Read identity risk fix",

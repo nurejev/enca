@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33608, date: "2026-11-26", title: "🕵 Who is … to CA: a fourth subject — a service principal or managed identity, with the IP addresses it signs in from",
+    items: [
+      { kind: "improved", tool: "Who is … to CA", text: "🤖 A service principal: pick an enterprise app, app registration or managed identity by name, appId or object ID and see the workload-identity policies that reach it — named directly, through all service principals in the tenant, excluded, or decided by an attribute filter — with the result on its own sign-ins, the resources it reaches, and the same 🌐 IP addresses card the user subject has: where it signs in from and which named locations those addresses fall in. A managed identity, a multi-tenant app or a Microsoft app is said plainly to be out of reach of Conditional Access instead of being listed against policies that pass it by. A principal no workload policy reaches, signing in from outside your IP named locations, is called out. For an app registered here, the secrets and certificates on the registration and the next expiry. The sign-in source segment is the shared one: the Entra log, or Defender hunting summarised per address and day. Export MD and a CSV of the addresses." },
+    ],
+  },
+  {
     build: 33607, date: "2026-11-26", title: "🕵 Who is … to CA: the IP addresses she signs in from, matched to your named locations",
     items: [
       { kind: "improved", tool: "Who is … to CA", text: "🌐 A new card after Applications lists every IP address she signed in from in the window: where it is (city, country, AS when the sign-in carries it), which named locations it falls in — green when marked trusted, plain for an IP location that is not, grey for a country list — her sign-ins and how many Conditional Access stopped, the applications, devices and last sign-in. Tiles count the addresses and networks, how many sit in a trusted location, the countries and the stopped sign-ins. Callouts name a stopped address that is in no IP named location, sign-ins from more than one country, and traffic concentrated on one or two addresses — the pattern of an account that runs from a server, which a location-scoped policy can pin down. Chips: all, outside IP named locations, stopped, first seen in the last 3 days; Group by /24 · /64; CSV; the Markdown brief carries the table. Built from her own sign-ins — no extra sign-in read and no new permission." },
