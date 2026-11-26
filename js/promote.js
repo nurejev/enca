@@ -108,7 +108,7 @@
 // the app computed v1.0.251-beta.12. Only `productionBuild` stays by hand,
 // because the app genuinely cannot know what the other channel is running.
 const PROMOTE = {
-  productionBuild: "v2.0.13",
+  productionBuild: "v2.0.14",
 
   // Named batches — see `group` in the header. Empty is fine: a group exists
   // only while two or more queued items share its id, and it is deleted when
@@ -181,50 +181,6 @@ const PROMOTE = {
   },
 
   items: [
-    {
-      n: 397,
-      ws: "ca",
-      requires: [396],
-      requiresWhy: "the 🌐 IP card, its CSV and Markdown come from 396 (WhoIs.ipsOf / ipsHtml / ipsCsv / ipsMd), which this build extends with weighted hunting rows.",
-      title: "🕵 Who is … to CA 1.7 — 🤖 a service principal or managed identity as the fourth subject: workload-identity policies, its sign-ins, resources and the IP addresses it signs in from",
-      tools: ["Who is … to CA"],
-      builds: [33608],
-      risk: "medium",
-      what: "js/whoissp.js (pure): analyze over the principal, its sign-ins, the policies (wlPolicies) and the named locations, on WorkloadId.kindOf / targets / inScope — per policy inc / filter / cannot / exc / na with the result per policy from appliedConditionalAccessPolicies; resources; WhoIs.ipsOf for the IP card; callouts (cannot target this kind, untargeted with addresses outside, stopped, attribute filter). huntQuery for one principal summarised per IP, country, city, resource and day; fromHunting into weighted records. index.html: screen-whoissp with wpToolbar, the fourth TAB_HOSTS tab A service principal, Help h5. app.js wp*: resolve by object id, appId or startswith(displayName) with a suggest box on dlPicked / dlSet, the registration's signInAudience and credentials for an app owned here, the sign-in read on the shared source segment, Export MD / CSV, the source switch re-reads the open subject. js/whois.js ipsOf: weighted rows (_n, _stopped, _first), resources as apps for workload records, appsLabel option.",
-      why: "Mihai, 26 Nov 2026: the IP option asked for a user or service account; asked whether service principals were in, he chose them; mockup approved. Medium: a read-only subject on a read-only tool; the Graph filter on servicePrincipalId and the single-principal hunting query are new reads.",
-      test: [
-        "Demo (?demo=1), 🕵 Who is … to CA → the strip has a fourth tab 🤖 A service principal; svc-backup-graph → Single-tenant app, CA900 Reaches it, named directly, blocked ×1, the stopped tile 1, the IP card with 192.0.2.80 in the US and no named location.",
-        "Demo: mi-func-invoices → Managed identity, policies reaching it —, the callout says Conditional Access cannot target a managed identity, CA900 and CA901 both read Cannot target this kind.",
-        "Demo: svc-payroll-export → 203.0.113.40 green HQ egress · trusted; Group by /24 · /64 and the All workload policies chip work; Export MD has the policies, IP and resources sections; Export CSV saves the addresses.",
-        "Real tenant, Entra sign-in log source: an app registration with a client secret → the registration line shows the secret count and the next expiry; its sign-ins load (the filter on servicePrincipalId is accepted) and each policy shows its result.",
-        "Real tenant: type part of a name shared by several apps → the read says how many match and the suggest list offers them; picking one does not reopen the list.",
-        "Real tenant, source set to Defender hunting: the same principal reads in one query, results column says not in the hunting source, a 53003 address shows its stopped count in the IP card.",
-        "Real tenant: a multi-tenant SaaS app (another owner tenant) reads as Multi-tenant app and cannot be targeted.",
-        "Switch the sign-in source while the subject is open with a principal typed: it re-reads with the new source.",
-        "node --test tools/*.test.cjs — all pass (tools/whoissp.test.cjs is new); node tools/check-plain-text.js clean.",
-      ],
-    },
-    {
-      n: 396,
-      ws: "ca",
-      title: "🕵 Who is … to CA 1.6 — 🌐 the IP addresses she signs in from, matched to the named locations; plus the 🛡 Read identity risk fix",
-      tools: ["Who is … to CA"],
-      builds: [33607],
-      risk: "medium",
-      what: "js/whois.js ipsOf / ipsHtml / ipsCsv / ipsMd: one row per IP address in her own records of the window — city, country, AS, the named locations it falls in (Entra networkLocationDetails first, else LocSignin.inCidr over the IP ranges and the country lists; GPS country locations never matched from an address; only an IP-range location counts as inside), sign-ins, stopped, non-interactive, apps, devices, first and last. Tiles, three callouts (stopped outside, several countries, concentrated on one or two addresses), chips all / outside / stopped / first seen in 3 days, Group by /24 · /64, CSV, Markdown section. app.js reads the named locations once (or reuses 🧩 Locations' list) and passes them to WhoIs.analyze. Fix: the 🛡 Read identity risk handler referenced term and woProg.check from runWhoIs (since 25368) and threw; it now re-derives on the result it belongs to and keeps records, cat, dgPresent and locations for the next re-derive.",
-      why: "Mihai, 26 Nov 2026: T36 needs an option to show the IPs the user or service account is logging in from; mockup approved, Copy as named location left out, service principals chosen as a follow-up subject. Medium: a read-only card on a read-only tool; the risk fix repairs a button that has not worked since 25368.",
-      test: [
-        "Demo (?demo=1), 🕵 Who is … to CA, a user with sign-ins → 🌐 IP addresses sits after 🗃 Applications; the demo's 203.0.113.x rows carry a green HQ egress · trusted chip, 198.51.100.x the plain Branch office (unmarked) chip.",
-        "Outside IP named locations chip lists only rows without an IP-location chip; Stopped lists only rows with a stopped count; Group by /24 · /64 folds 203.0.113.24 and its neighbours into 203.0.113.0/24 with the address count.",
-        "⭳ CSV on the card saves CA-WhoIs-ips-<upn>.csv, one line per address with named_locations, trusted and inside_ip_location; Export MD has an IP addresses section with the table.",
-        "Real tenant, Entra sign-in log source: a user signing in from the office shows the office location green with no by range marker (Entra's own answer); switch the source to Defender hunting and the same row reads · by range.",
-        "Real tenant, a user with a sign-in blocked from abroad: the red callout names the address, the stopped count and first seen; the countries callout lists both countries.",
-        "Real tenant, an account used from one server (a scanner, a sync account): the concentrated callout appears with 90% or more on one or two addresses.",
-        "Without Policy.Read.All on the named locations (or the read refused): the trusted tile reads — with named locations not read, every row says not read, nothing breaks.",
-        "Fix: 🛡 Read identity risk on a user → the button finishes, the risk card appears; press it a second time after a rescan and nothing throws.",
-        "node --test tools/*.test.cjs — all pass (tools/whois-ips.test.cjs is new); node tools/check-plain-text.js clean.",
-      ],
-    },
     {
       n: 395,
       ws: "ca",

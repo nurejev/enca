@@ -29,6 +29,12 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33701, date: "2026-11-26", title: "Production is build 336 (v2.0.14)",
+    items: [
+      { kind: "improved", tool: "General", text: "Production is build 336, ENCA v2.0.14: 🕵 Who is … to CA 1.7.0 from beta 33607 and 33608 — the 🌐 IP addresses card for a user, 🤖 A service principal as the fourth subject, and the 🛡 Read identity risk fix. The 📊 Deployment dashboard work of 33601–33606 stays on beta. This channel moves to cycle 337 (v2.0.15-beta.N)." },
+    ],
+  },
+  {
     build: 33608, date: "2026-11-26", title: "🕵 Who is … to CA: a fourth subject — a service principal or managed identity, with the IP addresses it signs in from",
     items: [
       { kind: "improved", tool: "Who is … to CA", text: "🤖 A service principal: pick an enterprise app, app registration or managed identity by name, appId or object ID and see the workload-identity policies that reach it — named directly, through all service principals in the tenant, excluded, or decided by an attribute filter — with the result on its own sign-ins, the resources it reaches, and the same 🌐 IP addresses card the user subject has: where it signs in from and which named locations those addresses fall in. A managed identity, a multi-tenant app or a Microsoft app is said plainly to be out of reach of Conditional Access instead of being listed against policies that pass it by. A principal no workload policy reaches, signing in from outside your IP named locations, is called out. For an app registered here, the secrets and certificates on the registration and the next expiry. The sign-in source segment is the shared one: the Entra log, or Defender hunting summarised per address and day. Export MD and a CSV of the addresses." },
