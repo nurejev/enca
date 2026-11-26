@@ -182,6 +182,27 @@ const PROMOTE = {
 
   items: [
     {
+      n: 396,
+      ws: "ca",
+      title: "🕵 Who is … to CA 1.6 — 🌐 the IP addresses she signs in from, matched to the named locations; plus the 🛡 Read identity risk fix",
+      tools: ["Who is … to CA"],
+      builds: [33607],
+      risk: "medium",
+      what: "js/whois.js ipsOf / ipsHtml / ipsCsv / ipsMd: one row per IP address in her own records of the window — city, country, AS, the named locations it falls in (Entra networkLocationDetails first, else LocSignin.inCidr over the IP ranges and the country lists; GPS country locations never matched from an address; only an IP-range location counts as inside), sign-ins, stopped, non-interactive, apps, devices, first and last. Tiles, three callouts (stopped outside, several countries, concentrated on one or two addresses), chips all / outside / stopped / first seen in 3 days, Group by /24 · /64, CSV, Markdown section. app.js reads the named locations once (or reuses 🧩 Locations' list) and passes them to WhoIs.analyze. Fix: the 🛡 Read identity risk handler referenced term and woProg.check from runWhoIs (since 25368) and threw; it now re-derives on the result it belongs to and keeps records, cat, dgPresent and locations for the next re-derive.",
+      why: "Mihai, 26 Nov 2026: T36 needs an option to show the IPs the user or service account is logging in from; mockup approved, Copy as named location left out, service principals chosen as a follow-up subject. Medium: a read-only card on a read-only tool; the risk fix repairs a button that has not worked since 25368.",
+      test: [
+        "Demo (?demo=1), 🕵 Who is … to CA, a user with sign-ins → 🌐 IP addresses sits after 🗃 Applications; the demo's 203.0.113.x rows carry a green HQ egress · trusted chip, 198.51.100.x the plain Branch office (unmarked) chip.",
+        "Outside IP named locations chip lists only rows without an IP-location chip; Stopped lists only rows with a stopped count; Group by /24 · /64 folds 203.0.113.24 and its neighbours into 203.0.113.0/24 with the address count.",
+        "⭳ CSV on the card saves CA-WhoIs-ips-<upn>.csv, one line per address with named_locations, trusted and inside_ip_location; Export MD has an IP addresses section with the table.",
+        "Real tenant, Entra sign-in log source: a user signing in from the office shows the office location green with no by range marker (Entra's own answer); switch the source to Defender hunting and the same row reads · by range.",
+        "Real tenant, a user with a sign-in blocked from abroad: the red callout names the address, the stopped count and first seen; the countries callout lists both countries.",
+        "Real tenant, an account used from one server (a scanner, a sync account): the concentrated callout appears with 90% or more on one or two addresses.",
+        "Without Policy.Read.All on the named locations (or the read refused): the trusted tile reads — with named locations not read, every row says not read, nothing breaks.",
+        "Fix: 🛡 Read identity risk on a user → the button finishes, the risk card appears; press it a second time after a rescan and nothing throws.",
+        "node --test tools/*.test.cjs — all pass (tools/whois-ips.test.cjs is new); node tools/check-plain-text.js clean.",
+      ],
+    },
+    {
       n: 395,
       ws: "ca",
       requires: [394],

@@ -21516,6 +21516,18 @@ This is a directory write. Nothing else changes.`)) return;
   // cap — unless the shared window is already in memory and uncapped, in
   // which case it is filtered from there and the tenant is not read twice.
   let woRes = null, woBusy = false, woDays = 7, woFilter = "reach", woSfilter = "any", woAfilter = "all", woSeedList = "", woLogSkipped = "";
+  // 🌐 IP addresses card (1.6.0): its chip, the /24 · /64 toggle, and the
+  // named locations it matches addresses against — read once per page, or
+  // taken from 🧩 Locations when that already read them; null = not readable
+  let woIfilter = "all", woIgroup = false, woLocCache;
+  async function woLocations() {
+    if (isDemo) return (typeof DEMO_DATA !== "undefined" && DEMO_DATA.namedLocations) || [];
+    if (Array.isArray(loList)) return loList;
+    if (woLocCache !== undefined) return woLocCache;
+    try { woLocCache = await Graph.ggetAll("/identity/conditionalAccess/namedLocations"); }
+    catch (e) { console.warn("whois: named locations not read", e.message); woLocCache = null; }
+    return woLocCache;
+  }
   // What the applications card (1.5.0) says about its source: "no sign-in to
   // this app" on an interactive-only read is not "does not use it".
   const woSrc = () => ({ label: logSourceLabel(), nonInteractive: logSource === "huntall" || logSource === "entraall", fuller: logSource === "hunt" ? "Hunting + non-interactive" : "Entra + non-interactive or Hunting + non-interactive" });
@@ -21732,8 +21744,9 @@ This is a directory write. Nothing else changes.`)) return;
       if (runKey !== logReadKey(woDays)) throw new Error("Read discarded: selected range, source or tenant changed");
       woProg.check();
       if (term !== $("woUser").value.trim()) throw new Error("Read discarded: selected user changed");
-      woRes = WhoIs.analyze({ user: u, vms: policies, records, cat, dgPresent, days: woDays, now: woNow() });
-      Object.assign(woRes, { records, cat, dgPresent });   // kept so the optional risk read can re-derive without re-reading
+      const locations = records ? await woLocations() : null;
+      woRes = WhoIs.analyze({ user: u, vms: policies, records, cat, dgPresent, days: woDays, now: woNow(), locations });
+      Object.assign(woRes, { records, cat, dgPresent, locations });   // kept so the optional risk read can re-derive without re-reading
       woBusy = false;
       $("woRescan").style.display = ""; $("woMd").style.display = ""; $("woCsv").style.display = "";
       renderWhoIs();
@@ -21746,7 +21759,7 @@ This is a directory write. Nothing else changes.`)) return;
 
   function renderWhoIs() {
     const R = woRes; if (!R) return;
-    $("woBody").innerHTML = WhoIs.render(R, { rangeLabel: rangeLabel(woDays), filter: woFilter, stateFilter: woSfilter, appFilter: woAfilter, source: woSrc(), logSkipped: woLogSkipped });
+    $("woBody").innerHTML = WhoIs.render(R, { rangeLabel: rangeLabel(woDays), filter: woFilter, stateFilter: woSfilter, appFilter: woAfilter, ipFilter: woIfilter, ipGroup: woIgroup, source: woSrc(), logSkipped: woLogSkipped });
     applyFolds("woBody");
   }
   $("woBody").addEventListener("click", async (e) => {
@@ -21755,7 +21768,10 @@ This is a directory write. Nothing else changes.`)) return;
     const f = e.target.closest("[data-wo-filter]"); if (f) { woFilter = f.dataset.woFilter; renderWhoIs(); return; }
     const sf = e.target.closest("[data-wo-sfilter]"); if (sf) { woSfilter = sf.dataset.woSfilter; renderWhoIs(); return; }
     const af = e.target.closest("[data-wo-afilter]"); if (af) { woAfilter = af.dataset.woAfilter; renderWhoIs(); return; }
+    const ifl = e.target.closest("[data-wo-ifilter]"); if (ifl) { woIfilter = ifl.dataset.woIfilter; renderWhoIs(); return; }
+    if (e.target.closest("[data-wo-igroup]")) { woIgroup = !woIgroup; renderWhoIs(); return; }
     const R = woRes; if (!R) return;
+    if (e.target.closest("[data-wo-ipcsv]")) { downloadText(`CA-WhoIs-ips-${(R.user.upn || R.user.name).replace(/[^\w.-]+/g, "_")}`, "csv", "text/csv", WhoIs.ipsCsv(R.ips)); return; }
     if (e.target.closest("[data-wo-appcsv]")) { downloadText(`CA-WhoIs-apps-${(R.user.upn || R.user.name).replace(/[^\w.-]+/g, "_")}`, "csv", "text/csv", WhoIs.appsCsv(R)); return; }
     if (e.target.closest("[data-wo-compare]")) {
       // Compare adds by term; hand it the UPN and let it resolve, so the
@@ -21778,10 +21794,14 @@ This is a directory write. Nothing else changes.`)) return;
       if (!isDemo && !await preConsent([...AUTH_CONFIG.scopes, ...WO_RISK])) return;
       const b = e.target.closest("[data-wo-risk]"); b.disabled = true; b.textContent = "reading…";
       await woReadRisk(R.user);
-      // the risk half of the result is derived, so re-derive it
-      woProg.check();
-      if (term !== $("woUser").value.trim()) throw new Error("Read discarded: selected user changed");
-      woRes = WhoIs.analyze({ user: R.user, vms: policies, records: R.records, cat: R.cat, dgPresent: R.dgPresent, days: woDays, now: woNow() });
+      // the risk half of the result is derived, so re-derive it — on the result
+      // the click belongs to (a rescan meanwhile replaced woRes: drop this one),
+      // and keep what a later re-derive needs. 25368 put the run's own guard
+      // here, naming `term`, which only exists inside runWhoIs: the read threw
+      // and the button stayed on "reading…" (fixed 1.6.0).
+      if (woRes !== R) return;
+      woRes = Object.assign(WhoIs.analyze({ user: R.user, vms: policies, records: R.records, cat: R.cat, dgPresent: R.dgPresent, days: woDays, now: woNow(), locations: R.locations }),
+        { records: R.records, cat: R.cat, dgPresent: R.dgPresent, locations: R.locations });
       if (R.user.risk && R.user.risk.err) toast(`Identity risk: <span>${esc(R.user.risk.err)}</span>`);
       renderWhoIs();
     }

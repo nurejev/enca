@@ -22,6 +22,8 @@
 //   WhoIs.render(res, opts)                                 → html
 //   WhoIs.toMd(res, meta)                                   → markdown
 //   WhoIs.appsCsv(res)                                      → csv of the applications card (1.5.0)
+//   WhoIs.ipsOf / ipsHtml / ipsCsv / ipsMd                 → the IP addresses card (1.6.0), shared with the
+//                                                             service-principal subject
 //
 // user     the shape Comparer.resolveUser returns, plus (optional)
 //          direct:Set of direct group ids, via:{groupId:[parentName]},
@@ -422,6 +424,194 @@ const WhoIs = (() => {
     };
   }
 
+  // -------------------------------------------------------------- ips --
+  // Where she signs in from (1.6.0) — one row per IP address in her own
+  // records, with the named locations it falls in. Two ways a location is
+  // matched, the same two 🧩 Locations → sign-ins uses (js/locsignin.js):
+  // Entra's own answer on the record (networkLocationDetails — the Graph
+  // sources only) and the IP against the location's ranges / the country
+  // against a country list. A country location looked up by Authenticator
+  // GPS cannot be matched from an IP, so only Entra's answer counts for it.
+  // "Inside" means an IP-range location: a country list says where the
+  // address is, not that it is one of yours. Shared by the user and the
+  // service-principal subject — `who` is the pronoun the prose uses.
+  const IP_RECENT_DAYS = 3, IP_CONCENTRATED = 0.9;
+  const netOf = (ip) => {
+    const s = String(ip || "").toLowerCase().split("%")[0];
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(s)) return s.split(".").slice(0, 3).join(".") + ".0/24";
+    if (!s.includes(":")) return s;
+    const halves = s.split("::"), head = halves[0] ? halves[0].split(":") : [], tail = halves.length > 1 && halves[1] ? halves[1].split(":") : [];
+    const groups = [...head, ...Array(Math.max(0, 8 - head.length - tail.length)).fill("0"), ...tail];
+    return groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "")).join(":") + "::/64";
+  };
+  const locPrep = (locations) => (locations || []).map((l) => {
+    const t = lc(l["@odata.type"]), kind = t.includes("country") ? "country" : t.includes("compliantnetwork") ? "network" : "ip";
+    return { id: l.id, name: l.displayName || "(unnamed)", lname: lc(l.displayName), kind, trusted: kind === "ip" && !!l.isTrusted,
+      ranges: kind === "ip" ? (l.ipRanges || []).map((r) => r.cidrAddress).filter(Boolean) : [],
+      countries: kind === "country" ? (l.countriesAndRegions || []).map((c) => String(c).toUpperCase()) : [],
+      gps: kind === "country" && /gps/i.test(String(l.countryLookupMethod || "")) };
+  });
+  function ipsOf(recs, failedIds, locations, now, days) {
+    const LS = typeof LocSignin !== "undefined" ? LocSignin : null;
+    const inCidr = (LS && LS.inCidr) || (() => false);
+    const interactiveOf = (typeof Signins !== "undefined" && Signins.isInteractive) ? Signins.isInteractive : () => true;
+    const locs = locPrep(locations);
+    const out = new Map();
+    let noIp = 0, withLog = 0, total = 0;
+    (recs || []).forEach((r) => {
+      total++;
+      const ip = String(r.ipAddress || "").trim();
+      if (!ip) { noIp++; return; }
+      let a = out.get(ip);
+      if (!a) out.set(ip, a = { ip, net: netOf(ip), cities: new Map(), countries: new Map(), asn: "", count: 0, stopped: 0, nonInteractive: 0, first: "", last: "", apps: new Map(), devices: new Set(), logLocs: new Map() });
+      a.count++;
+      if (failedIds && failedIds.has(r.id)) a.stopped++;
+      if (!interactiveOf(r)) a.nonInteractive++;
+      const L = r.location || {}, cc = String(L.countryOrRegion || "").toUpperCase();
+      if (L.city) a.cities.set(L.city, (a.cities.get(L.city) || 0) + 1);
+      if (cc) a.countries.set(cc, (a.countries.get(cc) || 0) + 1);
+      if (r.autonomousSystemNumber) a.asn = String(r.autonomousSystemNumber);
+      const when = String(r.createdDateTime || "");
+      if (when > a.last) a.last = when;
+      if (when && (!a.first || when < a.first)) a.first = when;
+      const app = r.appDisplayName || r.resourceDisplayName || r.servicePrincipalName || "";
+      if (app) a.apps.set(app, (a.apps.get(app) || 0) + 1);
+      const dd = r.deviceDetail || {};
+      if (dd.deviceId || dd.displayName || dd.operatingSystem) a.devices.add(dd.deviceId || dd.displayName || `${dd.operatingSystem || ""}|${dd.browser || ""}`);
+      if (r.networkLocationDetails) withLog++;
+      // Entra's own answer, by name (case kept for the label) — the rule 🧩 Locations uses
+      for (const d of r.networkLocationDetails || []) if (/named|trusted/i.test(String(d.networkType || ""))) (d.networkNames || []).forEach((nm) => a.logLocs.set(lc(nm), String(nm)));
+    });
+    const ref = now || Date.now();
+    const recentOn = (days || 0) >= IP_RECENT_DAYS * 2;
+    const top = (m) => [...m.entries()].sort((x, y) => y[1] - x[1]).map(([k]) => k);
+    const rows = [...out.values()].map((a) => {
+      const countries = top(a.countries), cc = countries[0] || "";
+      const locsHit = [];
+      locs.forEach((l) => {
+        const byLog = a.logLocs.has(l.lname);
+        const byRange = l.kind === "ip" && l.ranges.some((c) => inCidr(a.ip, c));
+        const byCountry = l.kind === "country" && !l.gps && countries.some((c) => l.countries.includes(c));
+        if (byLog || byRange || byCountry) locsHit.push({ id: l.id, name: l.name, kind: l.kind, trusted: l.trusted, by: byLog ? "log" : byRange ? "range" : "country" });
+      });
+      // a name Entra gave that no location read here carries (not read, or renamed)
+      a.logLocs.forEach((nm, key) => { if (!locs.some((l) => l.lname === key)) locsHit.push({ id: "", name: nm, kind: "ip", trusted: false, by: "log" }); });
+      locsHit.sort((x, y) => (y.trusted - x.trusted) || ((x.kind === "country") - (y.kind === "country")) || x.name.localeCompare(y.name));
+      const inside = locsHit.some((l) => l.kind === "ip" || l.kind === "network");
+      const t = Date.parse(a.first);
+      const firstDays = Number.isFinite(t) ? Math.max(0, Math.floor((ref - t) / 86400000)) : null;
+      return { ip: a.ip, net: a.net, v6: a.ip.includes(":"), city: top(a.cities)[0] || "", country: cc, countries, asn: a.asn, count: a.count, stopped: a.stopped, nonInteractive: a.nonInteractive,
+        first: a.first, last: a.last, firstDays, recent: recentOn && firstDays != null && firstDays < IP_RECENT_DAYS,
+        apps: top(a.apps), devices: a.devices.size, locs: locsHit, inside, trusted: locsHit.some((l) => l.trusted) };
+    }).sort((x, y) => (y.count - x.count) || x.ip.localeCompare(y.ip));
+    const withIp = total - noIp;
+    const cc = new Map();
+    rows.forEach((r) => r.countries.forEach((c) => cc.set(c, (cc.get(c) || 0) + r.count)));
+    const byCount = [...rows].sort((x, y) => y.count - x.count);
+    const top2 = byCount.slice(0, 2).reduce((s, r) => s + r.count, 0);
+    return {
+      rows, total, withIp, noIp, withLog, locationsRead: Array.isArray(locations), ipLocations: locs.filter((l) => l.kind === "ip").length,
+      networks: new Set(rows.map((r) => r.net)).size,
+      trusted: rows.filter((r) => r.trusted).length, trustedSignIns: rows.filter((r) => r.trusted).reduce((s, r) => s + r.count, 0),
+      inside: rows.filter((r) => r.inside).length,
+      countries: [...cc.entries()].sort((x, y) => y[1] - x[1]).map(([c, n]) => ({ c, n })),
+      stopped: rows.reduce((s, r) => s + r.stopped, 0), stoppedAddrs: rows.filter((r) => r.stopped).length,
+      stoppedOutside: rows.filter((r) => r.stopped && !r.inside),
+      // most of the traffic from one or two addresses — the shape of an account
+      // that runs from a server, which a location-scoped policy can pin down
+      concentrated: withIp >= 20 && rows.length >= 1 && top2 / withIp >= IP_CONCENTRATED ? { addrs: byCount.slice(0, 2), share: top2 / withIp } : null,
+      recentDays: IP_RECENT_DAYS, recentOn,
+      by: { all: rows.length, outside: rows.filter((r) => !r.inside).length, stopped: rows.filter((r) => r.stopped).length, recent: rows.filter((r) => r.recent).length },
+    };
+  }
+  // the /24 · /64 view: one row per network, the addresses folded in
+  function ipsGrouped(rows) {
+    const m = new Map();
+    rows.forEach((r) => {
+      let g = m.get(r.net);
+      if (!g) m.set(r.net, g = { ...r, ip: r.net, addrs: [], apps: [], locs: [], countries: [], count: 0, stopped: 0, nonInteractive: 0, devices: 0, first: "", last: "", recent: false, inside: false, trusted: false });
+      g.addrs.push(r.ip); g.count += r.count; g.stopped += r.stopped; g.nonInteractive += r.nonInteractive; g.devices += r.devices;
+      if (r.last > g.last) { g.last = r.last; g.city = r.city; }
+      if (r.first && (!g.first || r.first < g.first)) g.first = r.first;
+      r.apps.forEach((x) => { if (!g.apps.includes(x)) g.apps.push(x); });
+      r.countries.forEach((x) => { if (!g.countries.includes(x)) g.countries.push(x); });
+      r.locs.forEach((l) => { if (!g.locs.some((x) => x.name === l.name)) g.locs.push(l); });
+      g.recent = g.recent || r.recent; g.inside = g.inside || r.inside; g.trusted = g.trusted || r.trusted;
+    });
+    return [...m.values()].map((g) => ({ ...g, country: g.countries[0] || "" })).sort((x, y) => y.count - x.count);
+  }
+  const IP_FILTERS = ["outside", "stopped", "recent"];
+  function ipsHtml(ip, opts = {}) {
+    const who = opts.who || "she", whose = opts.whose || "her", Who = who[0].toUpperCase() + who.slice(1);
+    const rangeLabel = opts.rangeLabel || "window", src = opts.source || null;
+    if (!ip) return "";
+    const f = IP_FILTERS.includes(opts.filter) && ip.by[opts.filter] ? opts.filter : "all";
+    const base = ip.rows.filter((r) => f === "outside" ? !r.inside : f === "stopped" ? r.stopped : f === "recent" ? r.recent : true);
+    const shown = opts.group ? ipsGrouped(base) : base;
+    const hunting = src ? /hunt/i.test(String(src.label || src.key || "")) : !ip.withLog;
+    const locPill = (l) => {
+      const cls = l.kind === "country" ? "wo-ipl c" : l.trusted ? "wo-ipl t" : "wo-ipl";
+      const how = l.by === "log" ? "Entra matched this sign-in to it" : l.by === "range" ? "the address is in one of its ranges" : "the country is in its list";
+      return `<span class="${cls}" title="${esc(`${l.name} — ${l.kind === "country" ? "country location" : l.kind === "network" ? "compliant network" : l.trusted ? "IP location, marked trusted" : "IP location, not marked trusted"}; ${how}`)}">${esc(l.name)}${l.trusted ? " · trusted" : ""}${l.by === "range" && !hunting ? "" : l.by === "range" ? " · by range" : ""}</span>`;
+    };
+    const where = (r) => `${esc([r.city, r.country].filter(Boolean).join(", ") || "—")}${r.countries.length > 1 ? `<div class="mini muted">also ${esc(r.countries.slice(1).join(", "))}</div>` : ""}${r.asn ? `<div class="mini muted">AS${esc(r.asn)}</div>` : ""}`;
+    const tiles = `<div class="wo-iptiles">
+      <div class="wo-ipt"><span>Addresses</span><b>${ip.rows.length}</b><i>${ip.networks} network${ip.networks === 1 ? "" : "s"} (/24 · /64)</i></div>
+      <div class="wo-ipt"><span>In a trusted location</span><b>${ip.locationsRead ? ip.trusted : "—"}</b><i>${ip.locationsRead ? `${ip.trustedSignIns.toLocaleString()} of ${ip.withIp.toLocaleString()} sign-ins` : "named locations not read"}</i></div>
+      <div class="wo-ipt"><span>Countries</span><b>${ip.countries.length}</b><i>${esc(ip.countries.slice(0, 4).map((c) => c.c).join(", ") || "—")}${ip.countries.length > 4 ? " …" : ""}</i></div>
+      <div class="wo-ipt${ip.stopped ? " bad" : ""}"><span>Stopped by CA</span><b>${ip.stopped}</b><i>${ip.stopped ? `from ${ip.stoppedAddrs} address${ip.stoppedAddrs === 1 ? "" : "es"}` : "in this window"}</i></div>
+    </div>`;
+    const callouts = [];
+    ip.stoppedOutside.slice(0, 3).forEach((r) => callouts.push(`<div class="wo-callout bad"><b>${esc(r.ip)}</b>${r.city || r.country ? ` (${esc([r.city, r.country].filter(Boolean).join(", "))})` : ""} — ${r.stopped} of ${r.count} sign-in${r.count === 1 ? "" : "s"} stopped by Conditional Access${r.firstDays != null ? `, first seen ${r.firstDays === 0 ? "today" : `${r.firstDays} day${r.firstDays === 1 ? "" : "s"} ago`}` : ""}, and in no IP named location. Look at the 🛡 risk card and the stopped sign-ins below, then filter the Entra sign-in log on this address.</div>`));
+    if (ip.stoppedOutside.length > 3) callouts.push(`<p class="mini muted" style="margin:0 0 8px">${ip.stoppedOutside.length - 3} more stopped addresses outside the named locations — the Stopped chip lists them.</p>`);
+    if (ip.countries.length > 1) callouts.push(`<div class="wo-callout"><b>Sign-ins from ${ip.countries.length} countries</b>: ${ip.countries.slice(0, 6).map((c) => `${esc(c.c)} ×${c.n.toLocaleString()}`).join(", ")}${ip.countries.length > 6 ? " …" : ""}. The country is Microsoft's geolocation of the address — a VPN, a cloud egress or a mobile network can put it somewhere ${who} is not.</div>`);
+    if (ip.concentrated) {
+      const a = ip.concentrated.addrs, allIn = a.every((r) => r.inside);
+      callouts.push(`<div class="wo-callout">${Math.round(ip.concentrated.share * 100)}% of ${whose} sign-ins come from ${a.length === 1 ? "one address" : `${a.length} addresses`} (${a.map((r) => esc(r.ip)).join(", ")})${allIn ? `, inside ${esc([...new Set(a.flatMap((r) => r.locs.filter((l) => l.kind !== "country").map((l) => l.name)))].join(" and "))}` : a.some((r) => r.inside) ? ", one of them outside every IP named location" : ", outside every IP named location"}. That is the pattern of an account that runs from a server: a policy scoped to ${allIn ? "that location" : "a named location holding those addresses"} would match what it actually does.</div>`);
+    }
+    const chips = [["all", `All ${ip.by.all}`], ["outside", `Outside IP named locations ${ip.by.outside}`], ["stopped", `Stopped ${ip.by.stopped}`], ["recent", `First seen in the last ${ip.recentDays} days ${ip.by.recent}`]]
+      .filter(([k]) => k === "all" || ip.by[k])
+      .map(([k, l]) => `<button class="fchip${f === k ? " active" : ""}" data-wo-ifilter="${k}">${l}</button>`).join("");
+    const row = (r) => `<tr${r.stopped && !r.inside ? ' class="wo-iprow-bad"' : ""}><td><b class="mono">${esc(r.ip)}</b>${r.addrs ? `<div class="mini muted">${r.addrs.length} address${r.addrs.length === 1 ? "" : "es"}: ${esc(r.addrs.slice(0, 3).join(", "))}${r.addrs.length > 3 ? ` +${r.addrs.length - 3}` : ""}</div>` : `<div class="mini muted">${esc(r.net)}</div>`}</td>
+      <td>${where(r)}</td>
+      <td>${r.locs.length ? r.locs.slice(0, 4).map(locPill).join("") : `<span class="wo-ipl n">${ip.locationsRead ? "no named location" : "not read"}</span>`}${r.recent ? ' <span class="wo-ipl new">new</span>' : ""}</td>
+      <td class="num">${r.count.toLocaleString()}${r.stopped ? ` <span class="wo-res blk">${r.stopped} stopped</span>` : ""}${r.nonInteractive ? `<div class="mini muted">${r.nonInteractive.toLocaleString()} non-interactive</div>` : ""}</td>
+      <td>${esc(r.apps.slice(0, 3).join(", "))}${r.apps.length > 3 ? ` +${r.apps.length - 3}` : ""}<div class="mini muted">${r.devices ? `${r.devices} device${r.devices === 1 ? "" : "s"} · ` : ""}${r.last ? esc(fmtWhen(r.last)) : "—"}</div></td></tr>`;
+    return `<div class="list-card wo-card">
+      <h3 class="wo-h" data-wo-fold="ips">🌐 IP addresses ${who} signs in from · ${esc(rangeLabel)} ${pill(ip.rows.length, "")}</h3>
+      ${ip.rows.length ? `<p class="mini" style="margin:0 0 8px">${ip.withIp.toLocaleString()} sign-in${ip.withIp === 1 ? "" : "s"} from ${ip.rows.length} address${ip.rows.length === 1 ? "" : "es"}${src ? ` · source: <b>${esc(src.label)}</b>` : ""}${ip.noIp ? ` · ${ip.noIp.toLocaleString()} without an address` : ""} · from ${whose} own sign-ins, no extra read.</p>
+      ${tiles}${callouts.join("")}
+      <div class="chip-filter" style="margin:0 0 8px">${chips}<button class="fchip${opts.group ? " active" : ""}" data-wo-igroup title="One row per /24 (IPv4) or /64 (IPv6) network">Group by /24 · /64</button><button class="fchip" data-wo-ipcsv title="Every address, with where it is, its named locations, sign-ins and applications">⭳ CSV</button></div>
+      <div class="gu-tw"><table class="plist wo-tbl wo-iptbl"><thead><tr><th>IP address</th><th>Where</th><th>Named location</th><th class="num">Sign-ins</th><th>Apps · devices · last</th></tr></thead><tbody>
+        ${shown.slice(0, 40).map(row).join("")}
+      </tbody></table></div>${shown.length > 40 ? `<p class="mini muted" style="margin-top:6px">${shown.length - 40} more — in the CSV.</p>` : ""}
+      <p class="mini muted" style="margin-top:8px"><b>Named location</b> = the tenant's named locations the address falls in: green when marked trusted, plain for an IP location that is not, grey for a country list. ${hunting ? "This source carries the address, city and country only, so every location is matched by its ranges and countries here, not by Entra's own answer — switch to the Entra sign-in log for that." : "Entra's own answer on the sign-in (networkLocationDetails) counts first; otherwise the address is matched against the ranges."} A country location looked up by Authenticator GPS cannot be matched from an address. <b>Outside IP named locations</b> = in no IP-range location; a country list says where an address is, not that it is yours. Where and AS are Microsoft's geolocation of the address.${ip.recentOn ? ` <b>New</b> = first seen in the last ${ip.recentDays} days of this window, which reaches no further back than the window.` : ""}${ip.locationsRead ? "" : " The named locations could not be read (Policy.Read.All), so no address is matched to one."}</p>`
+        : `<p class="mini muted">No sign-ins in the window, so no addresses.</p>`}
+    </div>`;
+  }
+  function ipsCsv(ip) {
+    const H = ["ip_address", "network", "city", "country", "other_countries", "asn", "named_locations", "trusted", "inside_ip_location", "sign_ins", "non_interactive", "stopped", "applications", "devices", "first_sign_in", "last_sign_in"];
+    const L = [H.join(",")];
+    ((ip && ip.rows) || []).forEach((r) => L.push([
+      r.ip, r.net, r.city, r.country, r.countries.slice(1).join("; "), r.asn, r.locs.map((l) => `${l.name} [${l.kind === "country" ? "country" : l.trusted ? "trusted" : "ip"}, ${l.by}]`).join("; "),
+      r.trusted ? "yes" : "no", r.inside ? "yes" : "no", r.count, r.nonInteractive, r.stopped, r.apps.join("; "), r.devices, r.first, r.last,
+    ].map(csvCell).join(",")));
+    return L.join("\n");
+  }
+  function ipsMd(ip, who, e) {
+    const L = [];
+    if (!ip || !ip.rows.length) return L;
+    L.push(`## IP addresses ${who} signs in from`, "");
+    L.push(`${ip.withIp} sign-ins from ${ip.rows.length} address(es) in ${ip.networks} network(s); ${ip.locationsRead ? `${ip.trusted} in a trusted location (${ip.trustedSignIns} sign-ins)` : "named locations not read"}; countries: ${ip.countries.map((c) => `${e(c.c)} ×${c.n}`).join(", ") || "none"}; ${ip.stopped} stopped by CA.`, "");
+    ip.stoppedOutside.forEach((r) => L.push(`- **${e(r.ip)}** (${e([r.city, r.country].filter(Boolean).join(", "))}) — ${r.stopped} of ${r.count} stopped, in no IP named location${r.firstDays != null ? `, first seen ${r.firstDays} day(s) ago` : ""}.`));
+    if (ip.concentrated) L.push(`- ${Math.round(ip.concentrated.share * 100)}% of the sign-ins come from ${ip.concentrated.addrs.map((r) => e(r.ip)).join(", ")} — a location-scoped policy would match what this account does.`);
+    if (ip.stoppedOutside.length || ip.concentrated) L.push("");
+    L.push("| IP address | Where | Named location | Sign-ins | Stopped | Applications | Last |", "|---|---|---|---|---|---|---|");
+    ip.rows.forEach((r) => L.push(`| ${e(r.ip)} | ${e([r.city, r.country].filter(Boolean).join(", "))}${r.asn ? ` AS${e(r.asn)}` : ""} | ${e(r.locs.map((l) => `${l.name}${l.trusted ? " (trusted)" : ""}`).join(", ")) || "none"} | ${r.count} | ${r.stopped || ""} | ${e(r.apps.slice(0, 4).join(", "))} | ${e(r.last)} |`));
+    L.push("");
+    return L;
+  }
+
   // ---------------------------------------------------------- retired --
   // "Require approved client app" was retired on 30 June 2026: a policy that
   // carries it is READ-ONLY (enforced until disabled, never editable), and
@@ -496,7 +686,7 @@ const WhoIs = (() => {
   }
 
   // ---------------------------------------------------------- analyze --
-  function analyze({ user, vms, records, cat, dgPresent, days, now }) {
+  function analyze({ user, vms, records, cat, dgPresent, days, now, locations }) {
     const lookup = buildLookup(vms);
     const ladder = ladderOf(user, cat, dgPresent);
     const exclusions = exclusionsOf(user, lookup, cat);
@@ -547,7 +737,8 @@ const WhoIs = (() => {
     const mine = records ? records.filter((r) => !user.id || r.userId === user.id) : null;
     const retired = mine ? retiredOf(mine, lookup, rows) : null;
     const apps = log ? appsOf(mine, new Set(log.rows.map((r) => r.id)), rows, now) : null;
-    return { user, days: days || null, ladder, exclusions, rows, counts, stage, log, forecast, risk, retired, apps, bypasses: exclusions.filter((x) => x.bypass) };
+    const ips = log ? ipsOf(mine, new Set(log.rows.map((r) => r.id)), locations === undefined ? null : locations, now, days) : null;
+    return { user, days: days || null, ladder, exclusions, rows, counts, stage, log, forecast, risk, retired, apps, ips, bypasses: exclusions.filter((x) => x.bypass) };
   }
 
   // ----------------------------------------------------------- render --
@@ -845,6 +1036,7 @@ const WhoIs = (() => {
           : `<p class="mini muted">No sign-ins in the window, so no applications.</p>`}
       </div>`;
     }
+    const ipsCard = log && res.ips ? ipsHtml(res.ips, { rangeLabel, filter: opts.ipFilter, group: opts.ipGroup, source: opts.source || null }) : "";
     let mfaHtml = "";
     if (log && log.mfa) {
       const mf = log.mfa;
@@ -913,7 +1105,7 @@ const WhoIs = (() => {
     } else {
       logHtml = `<div class="list-card wo-card"><div class="run-prompt" style="padding:24px 20px"><p class="mini muted">The sign-in half was not read — ${esc(opts.logSkipped || "sign-in log not available")}.</p></div></div>`;
     }
-    return head + ladderHtml + tbl + riskHtml + retHtml + devHtml + appsHtml + mfaHtml + logHtml;
+    return head + ladderHtml + tbl + riskHtml + retHtml + devHtml + appsHtml + ipsCard + mfaHtml + logHtml;
   }
 
   // ------------------------------------------------------------- csv --
@@ -1005,6 +1197,7 @@ const WhoIs = (() => {
         L.push("| Application | Reaches | Sign-ins | Stopped | Last sign-in | Excluded from |", "| --- | --- | --- | --- | --- | --- |");
         ap.rows.forEach((a) => L.push(`| ${e(a.app)} | ${e(a.resources.map((r) => r.name).filter(Boolean).join(", "))} | ${a.count} | ${a.stopped || ""} | ${e(a.last)}${a.stale ? ` (${a.days} days ago)` : ""} | ${a.excluded.map((x) => `${e(x.seq || x.name)}${x.how === "all" ? " (every resource)" : x.how === "group" ? " (app group)" : ""}${x.state === "ro" ? " (report-only)" : ""} via ${e(via(x))}`).join("; ") || "none"} |`));
       }
+      if (res.ips && res.ips.rows.length) L.push("", ...ipsMd(res.ips, "she", e));
       if (log.mfa && (log.mfa.required || (log.mfa.methods && log.mfa.methods.known))) {
         const mf = log.mfa, mt = mf.methods;
         L.push("", `## MFA on her sign-ins (${e(meta.rangeLabel || "window")})`, "");
@@ -1039,5 +1232,5 @@ const WhoIs = (() => {
     return L.join("\n");
   }
 
-  return { analyze, render, toMd, toCsv, appsCsv, buildLookup, stateFor, ladderOf, exclusionsOf, logOf, appsOf };
+  return { analyze, render, toMd, toCsv, appsCsv, buildLookup, stateFor, ladderOf, exclusionsOf, logOf, appsOf, ipsOf, ipsHtml, ipsCsv, ipsMd, netOf };
 })();

@@ -2164,6 +2164,21 @@ body.with-side.side-min .toolnav-inner{padding-left:max(76px, calc((100vw - 1444
 .wo-tbl .wo-xchip{display:inline-block;background:var(--bad-bg);border:1px solid var(--bad-bd);color:var(--off);border-radius:6px;padding:0 6px;font-size:11px;font-weight:600;margin:1px 3px 1px 0;white-space:nowrap}
 .wo-tbl .wo-xchip.all{background:var(--soft);border-color:var(--border);color:inherit}
 .wo-tbl .wo-xchip:hover{text-decoration:none;border-color:currentColor}
+/* 🕵 1.6.0 — IP addresses card */
+.wo-iptiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 10px}
+@media (max-width:700px){.wo-iptiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.wo-ipt{background:var(--soft);border:1px solid var(--border);border-radius:10px;padding:8px 10px;min-width:0}
+.wo-ipt span{display:block;font-size:11px;color:var(--muted)}
+.wo-ipt b{display:block;font-size:20px;line-height:1.25}
+.wo-ipt i{display:block;font-style:normal;font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+.wo-ipt.bad{background:var(--bad-bg2);border-color:var(--bad-bd)}
+.wo-ipt.bad b,.wo-ipt.bad span{color:var(--off)}
+.wo-iptbl .mono{font-family:var(--mono,ui-monospace,monospace);font-size:12px;overflow-wrap:anywhere}
+.wo-ipl{display:inline-block;border:1px solid var(--border);background:var(--soft);border-radius:6px;padding:0 6px;font-size:11px;margin:1px 3px 1px 0;white-space:nowrap}
+.wo-ipl.t{background:var(--ok-bg);border-color:var(--ok-bd);color:var(--on)}
+.wo-ipl.c,.wo-ipl.n{color:var(--muted)}
+.wo-ipl.new{background:var(--warn-bg);border-color:var(--warn-bd);color:var(--warn-fg)}
+.wo-iptbl tr.wo-iprow-bad td{background:var(--bad-bg2)}
 /* The Flags cell wraps (25343). One chip per policy instead of one nowrap
    span holding a comma list: the cell grows DOWN, so the column can never
    force the table past its card again. The cap is what guarantees it — the

@@ -29,6 +29,13 @@
 // ======================================================================
 const CHANGELOG = [
   {
+    build: 33607, date: "2026-11-26", title: "🕵 Who is … to CA: the IP addresses she signs in from, matched to your named locations",
+    items: [
+      { kind: "improved", tool: "Who is … to CA", text: "🌐 A new card after Applications lists every IP address she signed in from in the window: where it is (city, country, AS when the sign-in carries it), which named locations it falls in — green when marked trusted, plain for an IP location that is not, grey for a country list — her sign-ins and how many Conditional Access stopped, the applications, devices and last sign-in. Tiles count the addresses and networks, how many sit in a trusted location, the countries and the stopped sign-ins. Callouts name a stopped address that is in no IP named location, sign-ins from more than one country, and traffic concentrated on one or two addresses — the pattern of an account that runs from a server, which a location-scoped policy can pin down. Chips: all, outside IP named locations, stopped, first seen in the last 3 days; Group by /24 · /64; CSV; the Markdown brief carries the table. Built from her own sign-ins — no extra sign-in read and no new permission." },
+      { kind: "fixed", tool: "Who is … to CA", text: "🛡 Read identity risk stayed on reading… and the risk card never appeared: since build 25368 the button ran a check that belongs to the main read and failed on it. The risk read now finishes and the card shows." },
+    ],
+  },
+  {
     build: 33606, date: "2026-11-25", title: "📊 Deployment dashboard: groups named UAE, POL or with a short city name join their region",
     items: [
       { kind: "fixed", tool: "Deployment dashboard", text: "📊 Deploy groups named INT-UAE, EXT-POL-Warszawa or INT-POL-SKARB landed in No region, and AE, PL · Warszawa and PL · Skarbimierz were listed missing beside them. The ISO three-letter code (POL, ARE, NLD …) and common spellings (UAE, UK) are now read as the two-letter code, and a short city name (SKARB) as the region list's city (Skarbimierz) when it matches one city of that country. The groups join their region and cover their country or site in What's missing; an imported region list with UAE in its code column is read as AE too." },
